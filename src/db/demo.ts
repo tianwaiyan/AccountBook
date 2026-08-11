@@ -1,5 +1,6 @@
 import type {
   AnalyticsRepository,
+  MonthlyPresetRepository,
   OptionRepository,
   SourceCategoryMapping,
   SourceMappingRepository,
@@ -21,6 +22,8 @@ import type {
   YearlyCategoryDatum,
 } from "@/types/domain";
 import { DEFAULT_BOOK_ID } from "@/types/domain";
+import type { MonthlyPreset, MonthlyPresetGenerationResult, MonthlyPresetInput } from "@/types/recurrence";
+import { recurrenceRuleService } from "@/services/recurrence-rule-service";
 import { matchesKeyword } from "@/utils/search";
 
 const accounts: Account[] = [
@@ -106,6 +109,8 @@ let transactions: Transaction[] = [
 
 const sourceMappings: SourceCategoryMapping[] = [];
 const settings = new Map<string, unknown>();
+let monthlyPresets: MonthlyPreset[] = [];
+const monthlyPresetRuns = new Set<string>();
 
 export class DemoTransactionRepository implements TransactionRepository {
   async list(filters: TransactionFilters): Promise<Transaction[]> {
@@ -145,6 +150,59 @@ export class DemoOptionRepository implements OptionRepository {
   async updateCategory(category: Category) { Object.assign(categories.find((row) => row.id === category.id)!, category); }
   async updateTag(tag: Tag) { Object.assign(tags.find((row) => row.id === tag.id)!, tag); }
   async reorder(entity: "accounts" | "categories" | "tags", orderedIds: string[]) { const collection = entity === "accounts" ? accounts : entity === "categories" ? categories : tags; orderedIds.forEach((id, index) => { const row = collection.find((item) => item.id === id); if (row) row.sortOrder = index; }); }
+}
+
+export class DemoMonthlyPresetRepository implements MonthlyPresetRepository {
+  async list(bookId: string, includeInactive = false): Promise<MonthlyPreset[]> {
+    return monthlyPresets.filter((preset) => preset.bookId === bookId && (includeInactive || preset.isActive)).map((preset) => ({ ...preset, rule: recurrenceRuleService.deserialize(preset.rule) }));
+  }
+
+  async create(bookId: string, input: MonthlyPresetInput): Promise<MonthlyPreset> {
+    const now = "2026-08-11T00:00:00Z";
+    const preset: MonthlyPreset = { ...input, id: crypto.randomUUID(), bookId, latestGeneratedMonth: null, createdAt: now, updatedAt: now, deletedAt: input.isActive ? null : now };
+    monthlyPresets.push(preset);
+    return { ...preset };
+  }
+
+  async update(id: string, input: MonthlyPresetInput): Promise<void> {
+    monthlyPresets = monthlyPresets.map((preset) => preset.id === id ? { ...preset, ...input, updatedAt: "2026-08-11T00:00:00Z", deletedAt: input.isActive ? null : preset.deletedAt ?? "2026-08-11T00:00:00Z" } : preset);
+  }
+
+  async generateForMonth(bookId: string, yearMonth: string, presetIds: string[], entries: Array<{ presetId: string; occurredAt: string; input: TransactionInput }>): Promise<MonthlyPresetGenerationResult> {
+    const beforeTransactions = transactions;
+    const beforePresets = monthlyPresets;
+    const beforeRuns = new Set(monthlyPresetRuns);
+    let generated = 0;
+    let skippedPresets = 0;
+    let emptyPresets = 0;
+    try {
+      for (const presetId of presetIds) {
+        const key = `${presetId}:${yearMonth}`;
+        if (monthlyPresetRuns.has(key)) {
+          skippedPresets += 1;
+          continue;
+        }
+        const presetEntries = entries.filter((entry) => entry.presetId === presetId);
+        if (!presetEntries.length) {
+          emptyPresets += 1;
+          continue;
+        }
+        for (const entry of presetEntries) {
+          transactions = [fromInput(crypto.randomUUID(), entry.input), ...transactions];
+          generated += 1;
+        }
+        monthlyPresetRuns.add(key);
+        monthlyPresets = monthlyPresets.map((preset) => preset.id === presetId ? { ...preset, latestGeneratedMonth: yearMonth } : preset);
+      }
+      return { generated, skippedPresets, emptyPresets };
+    } catch (error) {
+      transactions = beforeTransactions;
+      monthlyPresets = beforePresets;
+      monthlyPresetRuns.clear();
+      beforeRuns.forEach((key) => monthlyPresetRuns.add(key));
+      throw error;
+    }
+  }
 }
 
 export class DemoAnalyticsRepository implements AnalyticsRepository {

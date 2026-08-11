@@ -192,6 +192,9 @@ mod tests {
             .execute_batch(include_str!("../migrations/0003_legacy_hash_index.sql"))
             .expect("apply legacy hash index");
         connection
+            .execute_batch(include_str!("../migrations/0004_monthly_presets.sql"))
+            .expect("apply monthly presets");
+        connection
             .execute(
                 "INSERT INTO transactions(
                   id, book_id, occurred_at, account_id, trade_type, amount_minor,

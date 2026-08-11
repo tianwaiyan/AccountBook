@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account, Category, Tag, Transaction } from "@/types/domain";
 import { DEFAULT_BOOK_ID } from "@/types/domain";
 
-const { settingsRepository, transactionRepository, transactionService } = vi.hoisted(() => ({
+const { settingsRepository, transactionRepository, transactionService, monthlyPresetService } = vi.hoisted(() => ({
   settingsRepository: {
     get: vi.fn(async <T,>(_key: string, fallback: T) => fallback),
     set: vi.fn(async () => undefined),
@@ -17,9 +17,13 @@ const { settingsRepository, transactionRepository, transactionService } = vi.hoi
     createManual: vi.fn(async () => undefined),
     copy: vi.fn(async () => undefined),
   },
+  monthlyPresetService: {
+    list: vi.fn(async () => []),
+    generateForMonth: vi.fn(async () => ({ generated: 0, skippedPresets: 0, emptyPresets: 0 })),
+  },
 }));
 
-vi.mock("@/services/registry", () => ({ settingsRepository, transactionRepository, transactionService }));
+vi.mock("@/services/registry", () => ({ settingsRepository, transactionRepository, transactionService, monthlyPresetService }));
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize: () => number }) => ({
     getTotalSize: () => count * estimateSize(),

@@ -24,6 +24,10 @@ export class TransactionService {
     return this.transactions.create(bookId, await this.normalize(input, true));
   }
 
+  async normalizeForBatch(input: TransactionInput): Promise<TransactionInput> {
+    return this.normalize(input, true);
+  }
+
   async update(id: string, input: TransactionInput): Promise<void> {
     await this.transactions.update(id, await this.normalize(input, false));
   }

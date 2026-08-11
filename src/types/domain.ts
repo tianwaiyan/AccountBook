@@ -5,6 +5,7 @@ export type CategoryKind = "expense" | "income";
 export type TransactionSource =
   | "manual"
   | "copy"
+  | "preset"
   | "alipay"
   | "wechat"
   | "canonical_csv";
@@ -149,7 +150,7 @@ export interface TrackingRecord {
 
 export interface ImportCandidate {
   rowId: string;
-  source: Exclude<TransactionSource, "manual" | "copy">;
+  source: "alipay" | "wechat" | "canonical_csv";
   occurredAt: string;
   accountName: string;
   tradeType: TradeType;

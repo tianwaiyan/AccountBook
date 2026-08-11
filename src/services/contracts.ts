@@ -13,6 +13,11 @@ import type {
   TransactionInput,
   YearlyCategoryDatum,
 } from "@/types/domain";
+import type {
+  MonthlyPreset,
+  MonthlyPresetGenerationResult,
+  MonthlyPresetInput,
+} from "@/types/recurrence";
 
 export interface TransactionRepository {
   list(filters: TransactionFilters): Promise<Transaction[]>;
@@ -67,6 +72,18 @@ export interface SourceMappingRepository {
     tradeType: string,
     categoryId: string,
   ): Promise<void>;
+}
+
+export interface MonthlyPresetRepository {
+  list(bookId: string, includeInactive?: boolean): Promise<MonthlyPreset[]>;
+  create(bookId: string, input: MonthlyPresetInput): Promise<MonthlyPreset>;
+  update(id: string, input: MonthlyPresetInput): Promise<void>;
+  generateForMonth(
+    bookId: string,
+    yearMonth: string,
+    presetIds: string[],
+    entries: Array<{ presetId: string; occurredAt: string; input: TransactionInput }>,
+  ): Promise<MonthlyPresetGenerationResult>;
 }
 
 export interface SyncStatus {

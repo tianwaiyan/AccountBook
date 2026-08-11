@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { optionRepository } from "@/services/registry";
+import { MonthlyPresetEditor } from "@/features/monthly-presets/monthly-preset-editor";
 import type { Account, Category, CategoryKind, Tag } from "@/types/domain";
 import { DEFAULT_BOOK_ID } from "@/types/domain";
 
@@ -44,12 +45,13 @@ export function OptionsPage({ refreshVersion, onChanged }: { refreshVersion: num
   return <div className="space-y-4">
     {notice && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
     <Tabs defaultValue="accounts">
-      <div className="overflow-x-auto"><TabsList className="min-w-max"><TabsTrigger value="accounts">账户</TabsTrigger><TabsTrigger value="expense-categories">支出分类</TabsTrigger><TabsTrigger value="income-categories">收入分类</TabsTrigger><TabsTrigger value="expense-tags">支出标签</TabsTrigger><TabsTrigger value="income-tags">收入标签</TabsTrigger></TabsList></div>
+      <div className="overflow-x-auto"><TabsList className="min-w-max"><TabsTrigger value="accounts">账户</TabsTrigger><TabsTrigger value="expense-categories">支出分类</TabsTrigger><TabsTrigger value="income-categories">收入分类</TabsTrigger><TabsTrigger value="expense-tags">支出标签</TabsTrigger><TabsTrigger value="income-tags">收入标签</TabsTrigger><TabsTrigger value="monthly-presets">月度预设</TabsTrigger></TabsList></div>
       <TabsContent value="accounts"><AccountEditor rows={data.accounts} onChanged={changed} /></TabsContent>
       <TabsContent value="expense-categories"><CategoryEditor kind="expense" rows={data.categories.filter((item) => item.kind === "expense")} tags={data.tags.filter((item) => item.kind === "expense")} onChanged={changed} /></TabsContent>
       <TabsContent value="income-categories"><CategoryEditor kind="income" rows={data.categories.filter((item) => item.kind === "income")} tags={data.tags.filter((item) => item.kind === "income")} onChanged={changed} /></TabsContent>
       <TabsContent value="expense-tags"><TagEditor kind="expense" rows={data.tags.filter((item) => item.kind === "expense")} onChanged={changed} /></TabsContent>
       <TabsContent value="income-tags"><TagEditor kind="income" rows={data.tags.filter((item) => item.kind === "income")} onChanged={changed} /></TabsContent>
+      <TabsContent value="monthly-presets"><MonthlyPresetEditor referenceData={data} refreshVersion={refreshVersion} onChanged={changed} /></TabsContent>
     </Tabs>
   </div>;
 }

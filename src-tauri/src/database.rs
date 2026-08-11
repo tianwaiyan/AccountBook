@@ -173,6 +173,7 @@ fn apply_migrations(connection: &Connection) -> Result<(), String> {
         include_str!("../migrations/0001_initial.sql"),
         include_str!("../migrations/0002_seed_defaults.sql"),
         include_str!("../migrations/0003_legacy_hash_index.sql"),
+        include_str!("../migrations/0004_monthly_presets.sql"),
     ] {
         connection
             .execute_batch(migration)

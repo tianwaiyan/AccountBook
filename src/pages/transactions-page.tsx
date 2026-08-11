@@ -22,6 +22,7 @@ import {
 import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/components/feedback";
+import { BatchPresetDialog } from "@/features/monthly-presets/batch-preset-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -90,6 +91,7 @@ export function TransactionsPage({
   const [newDraftIds, setNewDraftIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
+  const [presetBatchOpen, setPresetBatchOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER);
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
@@ -301,7 +303,7 @@ export function TransactionsPage({
     <TransactionToolbar selectedMonth={selectedMonth} onMonthChange={(month: string) => { setSelectedMonth(month); setKeyword(""); clearColumnFilters(); }} months={referenceData.months} keyword={keyword} onKeywordChange={setKeyword} />
     <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} onClear={clearColumnFilters} />
     <div className="flex min-h-9 flex-wrap items-center gap-2">
-      {!editMode ? <Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
+      {!editMode ? <><Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button><Button variant="outline" onClick={() => setPresetBatchOpen(true)}><SlidersHorizontal className="size-4" />批量记账</Button></> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
       <Button variant="outline" onClick={clearColumnFilters} disabled={!hasActiveTableQuery}><RotateCcw className="size-4" />取消筛选</Button>
       <Button variant="outline" onClick={copySelected} disabled={selectedIds.size !== 1}><Copy className="size-4" />复制</Button>
       <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)} disabled={!selectedIds.size}><Trash2 className="size-4" />删除</Button>
@@ -311,6 +313,7 @@ export function TransactionsPage({
     {loading && rows.length === 0 ? <LoadingState label="正在读取流水" /> : <><DesktopTransactionGrid table={table} editMode={editMode} selectedIds={selectedIds} setColumnOrder={setColumnOrder} headerFilters={headerFilters} /><MobileTransactionCards rows={visibleRows} getEditableRow={getEditableRow} selectedIds={selectedIds} setSelectedIds={setSelectedIds} editMode={editMode} referenceData={referenceData} updateDraft={updateDraft} dateDisplay={dateDisplay} /></>}
     <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={editMode ? "从草稿移除流水" : "删除流水"} description={editMode ? "删除将在保存整表修改后写入数据库。" : `确定删除已选择的 ${selectedIds.size} 条流水吗？`} confirmLabel="删除" destructive onConfirm={deleteSelected} />
     <BatchDialog open={batchOpen} onOpenChange={setBatchOpen} selectedIds={selectedIds} drafts={drafts} referenceData={referenceData} setDrafts={setDrafts} />
+    <BatchPresetDialog open={presetBatchOpen} onOpenChange={setPresetBatchOpen} selectedMonth={selectedMonth} onGenerated={onChanged} />
   </div>;
 }
 
