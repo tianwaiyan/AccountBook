@@ -217,10 +217,21 @@ describe("TransactionsPage editing", () => {
       fireEvent.pointerMove(document, { pointerId: 7, clientX: 100, clientY: 10 });
       await act(async () => { vi.advanceTimersByTime(449); });
       expect(timeHeader).not.toHaveAttribute("aria-grabbed", "true");
+      expect(timeHeader).not.toHaveAttribute("data-column-dragging");
+      expect(amountHeader).not.toHaveAttribute("data-column-drop-target");
       await act(async () => { vi.advanceTimersByTime(1); });
       expect(timeHeader).toHaveAttribute("aria-grabbed", "true");
+      expect(timeHeader).toHaveAttribute("data-column-dragging", "true");
+      expect(timeHeader).toHaveClass("pointer-events-none", "opacity-70");
+      expect(timeHeader?.style.transform).toBe("translate3d(90px, 0px, 0)");
+      expect(amountHeader).toHaveAttribute("data-column-drop-target", "true");
+      expect(amountHeader?.querySelector("[data-column-drag-indicator]")).toBeTruthy();
       expect(screen.queryByText("取消排序")).not.toBeInTheDocument();
       await act(async () => { fireEvent.pointerUp(document, { pointerId: 7, clientX: 100, clientY: 10 }); });
+      expect(timeHeader).not.toHaveAttribute("data-column-dragging");
+      expect(timeHeader?.style.transform).toBe("");
+      expect(amountHeader).not.toHaveAttribute("data-column-drop-target");
+      expect(amountHeader?.querySelector("[data-column-drag-indicator]")).toBeNull();
       expect(settingsRepository.set).toHaveBeenCalledWith("transaction_column_order", ["select", "account", "tradeType", "occurredAt", "amount", "category", "tag", "status", "counterparty", "remark", "paymentChannel"]);
     } finally {
       document.elementFromPoint = originalElementFromPoint;
@@ -282,9 +293,13 @@ describe("TransactionsPage editing", () => {
     vi.useFakeTimers();
     try {
       fireEvent.pointerDown(timeTrigger, { button: 0, pointerType: "mouse", pointerId: 11 });
+      await act(async () => { vi.advanceTimersByTime(450); });
+      expect(timeHeader).toHaveAttribute("data-column-dragging", "true");
       fireEvent.lostPointerCapture(timeHeader as HTMLElement, { pointerId: 11 });
       await act(async () => { vi.advanceTimersByTime(500); });
       expect(timeHeader).not.toHaveAttribute("aria-grabbed", "true");
+      expect(timeHeader).not.toHaveAttribute("data-column-dragging");
+      expect(timeHeader?.style.transform).toBe("");
       expect(settingsRepository.set).not.toHaveBeenCalledWith("transaction_column_order", expect.anything());
     } finally {
       vi.useRealTimers();

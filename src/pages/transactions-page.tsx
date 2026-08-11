@@ -367,6 +367,10 @@ type HeaderDragSession = {
   sourceId: string;
   targetId: string;
   sourceElement: HTMLElement;
+  startClientX: number;
+  startClientY: number;
+  pointerX: number;
+  pointerY: number;
   timer: number | null;
   active: boolean;
 };
@@ -379,6 +383,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const suppressClickTimerRef = useRef<number | null>(null);
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const rows = table.getRowModel().rows;
   const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => parentRef.current, estimateSize: () => DESKTOP_TRANSACTION_ROW_HEIGHT, overscan: 10 });
   const rowItems = editMode ? rows.map((_, index) => ({ index, start: index * DESKTOP_TRANSACTION_ROW_HEIGHT })) : virtualizer.getVirtualItems();
@@ -396,6 +401,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const resetDragVisuals = useCallback(() => {
     setDraggingColumn(null);
     setDragOverColumnId(null);
+    setDragOffset(null);
   }, []);
 
   const releasePointer = useCallback((session: HeaderDragSession) => {
@@ -448,6 +454,9 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const handlePointerMove = useCallback((event: PointerEvent) => {
     const session = sessionRef.current;
     if (!session || event.pointerId !== session.pointerId) return;
+    session.pointerX = event.clientX;
+    session.pointerY = event.clientY;
+    if (session.active) setDragOffset({ x: event.clientX - session.startClientX, y: event.clientY - session.startClientY });
     const targetId = getColumnAtPoint(event);
     if (!targetId || targetId === session.targetId) return;
     session.targetId = targetId;
@@ -484,9 +493,10 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
     if (previous) {
       if (previous.timer !== null) window.clearTimeout(previous.timer);
       releasePointer(previous);
+      resetDragVisuals();
     }
     suppressClickRef.current = false;
-    const session: HeaderDragSession = { pointerId, sourceId: headerId, targetId: headerId, sourceElement: currentTarget, timer: null, active: false };
+    const session: HeaderDragSession = { pointerId, sourceId: headerId, targetId: headerId, sourceElement: currentTarget, startClientX: event.clientX, startClientY: event.clientY, pointerX: event.clientX, pointerY: event.clientY, timer: null, active: false };
     sessionRef.current = session;
     try {
       currentTarget.setPointerCapture?.(pointerId);
@@ -501,8 +511,9 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
       closeHeaderMenus();
       setDraggingColumn(headerId);
       setDragOverColumnId(current.targetId);
+      setDragOffset({ x: current.pointerX - current.startClientX, y: current.pointerY - current.startClientY });
     }, 450);
-  }, [closeHeaderMenus, releasePointer]);
+  }, [closeHeaderMenus, releasePointer, resetDragVisuals]);
 
   const handleHeaderClickCapture = useCallback((event: React.MouseEvent<HTMLElement>) => {
     if (!suppressClickRef.current) return;
@@ -515,10 +526,16 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
     <table className="grid min-w-max text-sm">
       <thead className="sticky top-0 z-10 grid border-b border-border bg-muted">
         <tr className="flex w-full">
-          {table.getHeaderGroups()[0].headers.map((header) => <th key={header.id} data-transaction-column={header.id} aria-grabbed={draggingColumn === header.id || undefined} onPointerDownCapture={(event) => startHeaderLongPress(header.id, event)} onPointerCancel={(event) => finishPointer(event.nativeEvent, true)} onLostPointerCapture={(event) => finishPointer(event.nativeEvent, true)} onClickCapture={handleHeaderClickCapture} className={cn("relative flex h-10 shrink-0 select-none items-center touch-none border-r border-border px-1.5 text-left text-xs font-semibold", header.id !== "select" && "cursor-grab", draggingColumn === header.id && "cursor-grabbing opacity-70", dragOverColumnId === header.id && draggingColumn !== header.id && "bg-primary/10")} style={{ width: header.getSize() }}>
-            <div className={cn("min-w-0 flex-1 truncate", header.id === "select" && "flex justify-center")}>{headerFilters[header.id] ?? flexRender(header.column.columnDef.header, header.getContext())}</div>
-            <div data-column-resize onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => { event.stopPropagation(); header.getResizeHandler()(event); }} onTouchStart={(event) => { event.stopPropagation(); header.getResizeHandler()(event); }} onDoubleClick={() => header.column.resetSize()} className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-primary/60" title="拖动调整列宽；双击恢复默认宽度" />
-          </th>)}
+          {table.getHeaderGroups()[0].headers.map((header) => {
+            const isDraggingColumn = draggingColumn === header.id;
+            const isDropTarget = dragOverColumnId === header.id && !isDraggingColumn;
+            const dragTransform = isDraggingColumn && dragOffset ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)` : undefined;
+            return <th key={header.id} data-transaction-column={header.id} data-column-dragging={isDraggingColumn ? "true" : undefined} data-column-drop-target={isDropTarget ? "true" : undefined} aria-grabbed={isDraggingColumn || undefined} onPointerDownCapture={(event) => startHeaderLongPress(header.id, event)} onPointerCancel={(event) => finishPointer(event.nativeEvent, true)} onLostPointerCapture={(event) => finishPointer(event.nativeEvent, true)} onClickCapture={handleHeaderClickCapture} className={cn("relative flex h-10 shrink-0 select-none items-center touch-none border-r border-border px-1.5 text-left text-xs font-semibold", header.id !== "select" && "cursor-grab", isDraggingColumn && "z-30 pointer-events-none cursor-grabbing bg-card opacity-70 shadow-lg ring-2 ring-primary/30 transition-[transform,opacity,box-shadow] duration-100 ease-out will-change-transform motion-reduce:transition-none", isDropTarget && "bg-primary/10 transition-colors duration-150 ease-out motion-reduce:transition-none")} style={{ width: header.getSize(), transform: dragTransform }}>
+              {isDropTarget && <span data-column-drag-indicator aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-30 w-0.5 bg-primary shadow-[0_0_6px_hsl(var(--primary))] motion-safe:animate-pulse motion-reduce:animate-none" />}
+              <div className={cn("min-w-0 flex-1 truncate", header.id === "select" && "flex justify-center")}>{headerFilters[header.id] ?? flexRender(header.column.columnDef.header, header.getContext())}</div>
+              <div data-column-resize onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => { event.stopPropagation(); header.getResizeHandler()(event); }} onTouchStart={(event) => { event.stopPropagation(); header.getResizeHandler()(event); }} onDoubleClick={() => header.column.resetSize()} className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-primary/60" title="拖动调整列宽；双击恢复默认宽度" />
+            </th>;
+          })}
         </tr>
       </thead>
       <tbody className="relative grid" style={{ height: `${totalSize}px` }}>
