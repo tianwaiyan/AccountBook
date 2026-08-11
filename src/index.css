@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 22% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 14%;
+    --border: 216 16% 88%;
+    --input: 216 16% 84%;
+    --ring: 213 72% 49%;
+    --primary: 213 72% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18% 93%;
+    --secondary-foreground: 222 22% 18%;
+    --muted: 210 18% 94%;
+    --muted-foreground: 216 10% 44%;
+    --accent: 188 31% 92%;
+    --accent-foreground: 190 42% 20%;
+    --destructive: 0 70% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --radius: 8px;
+  }
+  * { @apply border-border; }
+  html { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+  body { @apply m-0 min-w-[320px] bg-background text-foreground antialiased; letter-spacing: 0; }
+  button, input, select, textarea { font: inherit; }
+}
+
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--input)) transparent; }
+}
+

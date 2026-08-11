@@ -1,0 +1,17 @@
+node_modules/
+dist/
+data/*
+!data/.gitkeep
+backups/*
+!backups/.gitkeep
+.vite/
+coverage/
+src-tauri/target/
+src-tauri/gen/
+*.log
+*.tsbuildinfo
+.npm-cache/
+.cargo-cacert.pem
+*.accountbook-backup
+.DS_Store
+AGENTS.md
