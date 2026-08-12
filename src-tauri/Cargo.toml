@@ -1,8 +1,8 @@
 [package]
 name = "account-book"
-version = "0.1.0"
+version = "1.0.1"
 description = "Local-first personal finance application"
-authors = ["AccountBook"]
+authors = ["tianwaiyan"]
 edition = "2021"
 
 [lib]
