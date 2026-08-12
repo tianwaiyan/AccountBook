@@ -15,4 +15,4 @@
 
 ## 备份与发布
 
-备份测试会加载全部迁移。发布前运行 `npm.cmd run portable`，由 `scripts/build-portable.ps1` 生成根目录 `AccountBook.exe`。数据库、备份和真实账单不属于发布文件。
+备份测试会加载全部迁移。发布前运行 `npm.cmd run portable`，由 `scripts/build-portable.ps1` 生成 `release/staging/AccountBook/` 和 `release/AccountBook-v<version>-windows-x64.zip`。发布包中的 EXE 只作为启动入口，前端资源由 `resources/web/` 提供；数据库、备份和真实账单不属于发布文件。

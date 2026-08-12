@@ -1,7 +1,7 @@
 {
   "name": "account-book",
   "private": true,
-  "version": "1.0.1",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build:portable": "tauri build --no-bundle",
+    "tauri:build:portable": "tauri build --no-bundle --features custom-protocol",
     "portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1"
   },
   "dependencies": {

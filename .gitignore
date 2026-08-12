@@ -1,5 +1,7 @@
 node_modules/
 dist/
+release/
+AccountBook.exe
 data/*
 !data/.gitkeep
 backups/*
@@ -14,4 +16,3 @@ src-tauri/gen/
 .cargo-cacert.pem
 *.accountbook-backup
 .DS_Store
-AGENTS.md

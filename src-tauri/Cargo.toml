@@ -1,9 +1,12 @@
 [package]
 name = "account-book"
-version = "1.0.1"
+version = "2.0.0"
 description = "Local-first personal finance application"
 authors = ["tianwaiyan"]
 edition = "2021"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
 
 [lib]
 name = "account_book_lib"
