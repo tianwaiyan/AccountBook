@@ -1,8 +1,8 @@
 import { CalendarClock, CloudOff, DatabaseZap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { settingsRepository, syncService } from "@/services/registry";
 import type { TransactionDateDisplay } from "@/utils/date";
 
@@ -52,5 +52,32 @@ function LocalDataPanel() {
     }
   };
 
-  return <Card><CardHeader><CardTitle>本地数据</CardTitle></CardHeader><CardContent className="space-y-5"><label className="flex cursor-pointer items-start gap-3"><Checkbox checked={clearOnExit} disabled={saving} onCheckedChange={(checked) => { void changeClearOnExit(checked === true); }} aria-label="退出时清理 WebView2 浏览数据" /><span className="grid gap-1"><span className="flex items-center gap-2 text-sm font-medium"><DatabaseZap className="size-4" />退出时清理 WebView2 浏览数据</span><span className="text-xs text-muted-foreground">清理缓存、Cookie 和站点数据；不会删除账本数据库或备份。</span></span></label><div className="flex flex-wrap items-start gap-3"><CalendarClock className="mt-0.5 size-4 text-muted-foreground" /><label className="grid min-w-56 gap-1 text-sm font-medium">流水日期显示<select className="h-9 rounded-md border border-input bg-background px-2 text-sm font-normal" value={dateDisplay} disabled={saving} onChange={(event) => { void changeDateDisplay(event.target.value as TransactionDateDisplay); }}><option value="full">完整：YYYY-MM-DD HH:mm:ss</option><option value="short">简短：YYYY-MM-DD</option></select><span className="text-xs font-normal text-muted-foreground">只影响流水列表显示，数据库仍保存完整日期时间。</span></label></div></CardContent></Card>;
+  return (
+    <Card>
+      <CardHeader><CardTitle>本地数据</CardTitle></CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <DatabaseZap className="mt-0.5 size-4 shrink-0" />
+            <div className="grid min-w-0 gap-1">
+              <span className="text-sm font-medium">退出时清理 WebView2 浏览数据</span>
+              <span className="text-xs text-muted-foreground">清理缓存、Cookie 和站点数据；不会删除账本数据库或备份。</span>
+            </div>
+          </div>
+          <Switch checked={clearOnExit} disabled={saving} onCheckedChange={(checked) => { void changeClearOnExit(checked); }} aria-label="退出时清理 WebView2 浏览数据" />
+        </div>
+        <div className="flex flex-wrap items-start gap-3">
+          <CalendarClock className="mt-0.5 size-4 text-muted-foreground" />
+          <label className="grid min-w-56 gap-1 text-sm font-medium">
+            流水日期显示
+            <select className="h-9 rounded-md border border-input bg-background px-2 text-sm font-normal" value={dateDisplay} disabled={saving} onChange={(event) => { void changeDateDisplay(event.target.value as TransactionDateDisplay); }}>
+              <option value="full">完整：YYYY-MM-DD HH:mm:ss</option>
+              <option value="short">简短：YYYY-MM-DD</option>
+            </select>
+            <span className="text-xs font-normal text-muted-foreground">只影响流水列表显示，数据库仍保存完整日期时间。</span>
+          </label>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
