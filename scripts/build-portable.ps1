@@ -166,8 +166,6 @@ function Invoke-PortableBuild([string]$version) {
             Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $packageRoot "resources\web") -Recurse -Force
         }
         Copy-Item -LiteralPath (Join-Path $projectRoot "README.md") -Destination (Join-Path $packageRoot "README.md") -Force
-        Copy-Item -LiteralPath (Join-Path $projectRoot "data\.gitkeep") -Destination (Join-Path $packageRoot "data\.gitkeep") -Force
-        Copy-Item -LiteralPath (Join-Path $projectRoot "backups\.gitkeep") -Destination (Join-Path $packageRoot "backups\.gitkeep") -Force
 
         $webRoot = (Resolve-Path -LiteralPath (Join-Path $packageRoot "resources\web")).Path.TrimEnd('\') + '\'
         $manifestFiles = Get-ChildItem -LiteralPath $webRoot -File -Recurse |
