@@ -295,6 +295,8 @@ mod tests {
     use super::{load, serve_request};
     use tauri::http::StatusCode;
 
+    const TEST_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
     fn test_root() -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("account-book-resources-{}", Uuid::new_v4()));
         fs::create_dir_all(root.join("resources/web/assets")).expect("create resource root");
@@ -310,7 +312,7 @@ mod tests {
     fn write_manifest(root: &Path, files: serde_json::Value) {
         let manifest = json!({
             "formatVersion": 1,
-            "appVersion": "2.0.0",
+            "appVersion": TEST_APP_VERSION,
             "files": files,
         });
         fs::write(
@@ -334,7 +336,7 @@ mod tests {
         let root = test_root();
         fs::write(root.join("resources/web/extra.txt"), b"extra").expect("write extra");
         write_manifest(&root, actual_files(&root));
-        load(root.join("resources"), "2.0.0").expect("valid resources");
+        load(root.join("resources"), TEST_APP_VERSION).expect("valid resources");
         fs::remove_dir_all(root).expect("remove test root");
     }
 
@@ -342,7 +344,9 @@ mod tests {
     fn rejects_version_mismatch() {
         let root = test_root();
         write_manifest(&root, actual_files(&root));
-        let error = load(root.join("resources"), "2.1.0").expect_err("version mismatch");
+        let mismatched_version = format!("{TEST_APP_VERSION}-mismatch");
+        let error =
+            load(root.join("resources"), &mismatched_version).expect_err("version mismatch");
         assert!(error.contains("版本不一致"));
         fs::remove_dir_all(root).expect("remove test root");
     }
@@ -352,7 +356,7 @@ mod tests {
         let root = test_root();
         let files = json!([{"path": "index.html", "sha256": "deadbeef"}]);
         write_manifest(&root, files);
-        let error = load(root.join("resources"), "2.0.0").expect_err("hash mismatch");
+        let error = load(root.join("resources"), TEST_APP_VERSION).expect_err("hash mismatch");
         assert!(error.contains("校验失败"));
         fs::remove_dir_all(root).expect("remove test root");
     }
@@ -365,7 +369,7 @@ mod tests {
             {"path": "assets/missing.js", "sha256": "deadbeef"}
         ]);
         write_manifest(&root, files);
-        let error = load(root.join("resources"), "2.0.0").expect_err("missing file");
+        let error = load(root.join("resources"), TEST_APP_VERSION).expect_err("missing file");
         assert!(error.contains("文件缺失"));
         fs::remove_dir_all(root).expect("remove test root");
     }
@@ -379,7 +383,7 @@ mod tests {
             {"path": "../outside.txt", "sha256": "deadbeef"}
         ]);
         write_manifest(&root, files);
-        let error = load(root.join("resources"), "2.0.0").expect_err("path traversal");
+        let error = load(root.join("resources"), TEST_APP_VERSION).expect_err("path traversal");
         assert!(error.contains("不安全"));
         fs::remove_dir_all(root).expect("remove test root");
     }

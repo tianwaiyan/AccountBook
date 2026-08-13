@@ -15,4 +15,16 @@
 
 ## 备份与发布
 
-备份测试会加载全部迁移。发布前运行 `npm.cmd run portable`，由 `scripts/build-portable.ps1` 生成 `release/staging/AccountBook/` 和 `release/AccountBook-v<version>-windows-x64.zip`。发布包中的 EXE 只作为启动入口，前端资源由 `resources/web/` 提供；数据库、备份和真实账单不属于发布文件。
+备份测试会加载全部迁移。便携发布由开发者手动执行，不需要随着 Git commit 一起发布。首次从源码构建前先执行 `npm.cmd ci`，然后可以使用当前版本构建：
+
+```powershell
+npm.cmd run portable
+```
+
+需要发布新版本时，使用严格三段式版本号同步应用版本并构建：
+
+```powershell
+npm.cmd run portable -- -Version 2.1.0
+```
+
+脚本只更新应用版本字段，不修改依赖包版本、数据库迁移版本、资源格式版本、备份格式版本或历史更新记录；自动化执行可追加 `-NoPause`。输出为 `release/staging/AccountBook/` 和 `release/AccountBook-v<version>-windows-x64.zip`。发布包中的 EXE 只作为启动入口，前端资源由 `resources/web/` 提供；数据库、备份和真实账单不属于发布文件，staging 和 ZIP 也不加入 Git commit。

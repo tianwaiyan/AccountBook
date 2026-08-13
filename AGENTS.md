@@ -95,19 +95,21 @@ npm.cmd run build
 
 ## 8. 构建与发布
 
-- 标准便携构建命令为 `npm.cmd run portable`。
-- `package.json` 是版本主来源；发布脚本必须校验 package-lock、Tauri 配置、Cargo 配置和 Cargo.lock 的版本一致。
+- 便携发布是手动操作，不要求随着每次项目修改或 Git commit 执行；标准命令为 `npm.cmd run portable`。
+- `package.json` 是版本主来源；发布脚本必须校验 `package.json`、package-lock 根包版本字段、Tauri 配置、Cargo 配置和 Cargo.lock 中 `account-book` 包的版本一致。
+- `scripts/build-portable.ps1` 无参数时输出当前应用版本、校验版本一致性并构建；使用 `-Version MAJOR.MINOR.PATCH` 时先同步应用版本字段再构建；使用 `-NoPause` 时错误返回非零退出码且不等待输入。
+- 版本号严格采用不带预发布标识的 `MAJOR.MINOR.PATCH` 格式。版本同步只处理应用版本字段，不修改依赖包版本、数据库迁移版本、资源格式版本、备份格式版本或历史更新记录。
+- 缺少依赖、版本不一致或构建失败时必须显示具体原因；交互式执行默认暂停等待确认，构建失败不得自动重试。版本同步成功但后续构建失败时不自动回滚已同步字段。
 - `src-tauri/tauri.conf.json` 使用 `accountbook://localhost` 作为生产前端地址，并保持 `bundle.active = false`；不生成 MSI 或 NSIS。
 - `scripts/build-portable.ps1` 只生成 `release/staging/AccountBook/` 和 `release/AccountBook-v<version>-windows-x64.zip`，不得生成或更新仓库根目录 EXE。
 - 发布目录固定为 `AccountBook/`，包含 `AccountBook.exe`、`resources/`、空的 `data/`、空的 `backups/` 和 `README.md`。
 - GitHub Release 只上传运行 ZIP；GitHub 自动生成的源码归档不重复上传，也不上传单独的裸 EXE。
-- 不得上传 `data/AccountBook.db`、`data/webview/`、真实备份或其他用户数据。
+- 不得将发布 ZIP、`release/staging/`、`data/AccountBook.db`、`data/webview/`、真实备份或其他用户数据加入 Git commit 或上传。
 
 ## 9. 文档与 Git
 
 - 每次项目修改后，必须在根目录 `更新记录.md` 中总结实际改动和已完成验证；只记录已经完成的事实。
-- 每次项目修改完成并通过基础验证后，必须运行 `scripts/build-portable.ps1`重新生成发布 staging 目录和 ZIP；未完成便携构建不得视为收尾完成。
 - 每次项目修改完成后，必须检查 `git status`，确认没有误包含数据库、备份、真实账单、构建缓存或其他用户文件，然后在本地 Git 执行一次 commit。
-- Commit 应只包含本次有意修改的文件，提交信息应能概括本次变更。
+- Commit 应只包含本次有意修改的文件，提交信息为 type: description 格式，description 应能概括本次变更，type 为英文格式，description 为中文格式。
 - 如果存在无法安全处理的既有未提交改动，不得擅自覆盖或回退，应先报告。
-- 用户运行方式变化时更新 `README.md`。
+- 用户运行方式变化时更新 `README.md`；`更新记录.md` 按时间倒序排列，最新记录放在最前面，历史记录不改写。
