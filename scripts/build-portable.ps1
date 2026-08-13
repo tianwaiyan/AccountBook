@@ -217,8 +217,6 @@ function Pause-OnError([string]$message) {
 }
 
 try {
-    $requestedVersion = Resolve-RequestedVersion $Version
-
     if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
         throw "未找到 Node.js。请先安装 Node.js，并确保 node.exe 位于 PATH 中。"
     }
@@ -233,9 +231,16 @@ try {
     if ([string]::IsNullOrWhiteSpace($currentVersion)) {
         throw "package.json does not contain a version"
     }
-    if (-not $requestedVersion -and -not (Test-ApplicationVersion $currentVersion)) {
+    if (-not (Test-ApplicationVersion $currentVersion)) {
         throw "package.json 中的当前版本格式无效：'$currentVersion'。请输入 MAJOR.MINOR.PATCH。"
     }
+
+    if ([string]::IsNullOrWhiteSpace($Version) -and -not $NoPause) {
+        Write-Output "当前应用版本：$currentVersion"
+        $Version = Read-Host "请输入本次发布版本号（直接回车沿用当前版本）"
+    }
+
+    $requestedVersion = Resolve-RequestedVersion $Version
 
     if ($requestedVersion) {
         Sync-ApplicationVersion $requestedVersion $projectRoot

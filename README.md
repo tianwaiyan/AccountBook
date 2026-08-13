@@ -71,10 +71,16 @@ backups/                       # 默认备份目录
 npm.cmd ci
 ```
 
-使用当前版本校验并构建发布包：
+直接运行时，脚本会先显示当前版本并询问本次发布版本号；直接回车表示沿用当前版本：
 
 ```powershell
 npm.cmd run portable
+```
+
+自动化执行时追加 `-NoPause` 会跳过询问并沿用当前版本：
+
+```powershell
+npm.cmd run portable -- -NoPause
 ```
 
 同步应用版本并构建发布包，例如：

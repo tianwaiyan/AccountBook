@@ -97,7 +97,7 @@ npm.cmd run build
 
 - 便携发布是手动操作，不要求随着每次项目修改或 Git commit 执行；标准命令为 `npm.cmd run portable`。
 - `package.json` 是版本主来源；发布脚本必须校验 `package.json`、package-lock 根包版本字段、Tauri 配置、Cargo 配置和 Cargo.lock 中 `account-book` 包的版本一致。
-- `scripts/build-portable.ps1` 无参数时输出当前应用版本、校验版本一致性并构建；使用 `-Version MAJOR.MINOR.PATCH` 时先同步应用版本字段再构建；使用 `-NoPause` 时错误返回非零退出码且不等待输入。
+- `scripts/build-portable.ps1` 无参数时先输出当前应用版本并询问本次发布版本号，直接回车沿用当前版本，然后校验版本一致性并构建；使用 `-Version MAJOR.MINOR.PATCH` 时先同步应用版本字段再构建；使用 `-NoPause` 时跳过版本询问、沿用当前版本（除非明确传入 `-Version`），错误返回非零退出码且不等待输入。
 - 版本号严格采用不带预发布标识的 `MAJOR.MINOR.PATCH` 格式。版本同步只处理应用版本字段，不修改依赖包版本、数据库迁移版本、资源格式版本、备份格式版本或历史更新记录。
 - 缺少依赖、版本不一致或构建失败时必须显示具体原因；交互式执行默认暂停等待确认，构建失败不得自动重试。版本同步成功但后续构建失败时不自动回滚已同步字段。
 - `src-tauri/tauri.conf.json` 使用 `accountbook://localhost` 作为生产前端地址，并保持 `bundle.active = false`；不生成 MSI 或 NSIS。
