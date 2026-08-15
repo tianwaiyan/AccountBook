@@ -34,13 +34,13 @@ export class SqliteAnalyticsRepository implements AnalyticsRepository {
       settledReimbursementMinor: number;
     }>>(
       `SELECT
-        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_expense' AND substr(t.occurred_at, 1, 7) = ? THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughOutgoingMinor,
-        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_income' AND substr(t.occurred_at, 1, 7) = ? THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughIncomingMinor,
+        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_expense' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughOutgoingMinor,
+        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_income' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughIncomingMinor,
         COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'pending_reimbursement' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS pendingReimbursementMinor,
         COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'settled' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS settledReimbursementMinor
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.book_id = ? AND t.deleted_at IS NULL`,
-      [yearMonth, yearMonth, bookId],
+      [bookId],
     );
     const personal = personalRows[0] ?? { incomeMinor: 0, expenseMinor: 0, count: 0 };
     const special = specialRows[0] ?? {

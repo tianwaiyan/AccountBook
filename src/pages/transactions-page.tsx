@@ -489,7 +489,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const startHeaderLongPress = useCallback((headerId: string, event: React.PointerEvent<HTMLElement>) => {
     if (headerId === "select" || (event.pointerType === "mouse" && event.button !== 0)) return;
     const target = event.target as HTMLElement;
-    if (target.closest("[data-column-resize]")) return;
+    if (target.closest("[data-column-resize]") || target.closest("[data-header-menu-trigger]")) return;
     const currentTarget = event.currentTarget as HTMLElement;
     const pointerId = event.pointerId;
     const previous = sessionRef.current;

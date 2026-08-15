@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, CircleDollarSign, Minus, Plus, ReceiptText } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CircleDollarSign, Minus, Plus } from "lucide-react";
 import {
   CartesianGrid,
   Cell,
@@ -80,18 +80,10 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
   return (
     <div className="space-y-5">
       <PeriodToolbar months={referenceData.months} selectedMonth={selectedMonth} onChange={setSelectedMonth} />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard label="个人收入" value={formatMoney(data.summary.incomeMinor)} icon={ArrowUpRight} tone="income" />
         <MetricCard label="个人支出" value={formatMoney(data.summary.expenseMinor)} icon={ArrowDownRight} tone="expense" />
         <MetricCard label="本月结余" value={formatMoney(data.summary.balanceMinor, { sign: true })} icon={CircleDollarSign} tone={data.summary.balanceMinor >= 0 ? "primary" : "expense"} />
-        <MetricCard label="交易笔数" value={String(data.summary.count)} icon={ReceiptText} tone="neutral" />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SmallMetric label="过手转出" value={data.summary.passThroughOutgoingMinor} />
-        <SmallMetric label="过手转入" value={data.summary.passThroughIncomingMinor} />
-        <SmallMetric label="待报销" value={data.summary.pendingReimbursementMinor} warning />
-        <SmallMetric label="已结清公费" value={data.summary.settledReimbursementMinor} />
       </div>
 
       <YearlyTable data={data.yearly} year={selectedYear} />
@@ -104,6 +96,13 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
         <PiePanel title="支出分类" data={data.categories} />
         <PiePanel title="收入标签" data={data.incomeTags} />
         <PiePanel title="支出标签" data={data.expenseTags} />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SmallMetric label="已垫付公费" value={data.summary.pendingReimbursementMinor} warning />
+        <SmallMetric label="已结清公费" value={data.summary.settledReimbursementMinor} />
+        <SmallMetric label="总过手转出" value={data.summary.passThroughOutgoingMinor} />
+        <SmallMetric label="总过手转入" value={data.summary.passThroughIncomingMinor} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -215,7 +214,7 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div ref={scrollRef} onScroll={handleScroll} className="scrollbar-thin min-w-0 flex-1 overflow-x-auto">
+        <div ref={scrollRef} onScroll={handleScroll} className="trend-scrollbar-hidden min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <div style={{ width: `${Math.max(100, contentWidth)}px`, minWidth: "100%" }}>
             <ResponsiveContainer width="100%" height={plotHeight}>
               <LineChart data={points} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
@@ -284,7 +283,8 @@ function YearlyTable({ data, year }: { data: YearlyCategoryDatum[]; year: string
     return [...byCategory.values()];
   }, [data]);
   const maximum = Math.max(1, ...rows.flatMap((row) => row.values));
-  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value ? `rgba(220, 38, 38, ${0.08 + (value / maximum) * 0.32})` : undefined }}>{value ? formatMoney(value) : "-"}</td>)}</tr>) : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
+  const totals = rows.reduce((result, row) => result.map((value, index) => value + row.values[index]), Array(12).fill(0));
+  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? <>{rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value ? `rgba(220, 38, 38, ${0.08 + (value / maximum) * 0.32})` : undefined }}>{value ? formatMoney(value) : "-"}</td>)}</tr>)}<tr className="border-t-2 border-border bg-muted/40 font-bold"><th className="sticky left-0 bg-muted/60 px-3 py-2 text-left font-bold">总计</th>{totals.map((value, index) => <td key={index} className="px-2 py-2 text-right font-bold tabular-nums">{value ? formatMoney(value) : "-"}</td>)}</tr></> : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
 }
 
 function TrackingPanel({ title, rows, empty }: { title: string; rows: TrackingRecord[]; empty: string }) {

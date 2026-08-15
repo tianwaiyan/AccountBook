@@ -194,6 +194,18 @@ describe("TransactionsPage editing", () => {
     expect(await screen.findByText("取消排序")).not.toHaveAttribute("data-disabled");
   });
 
+  it("applies a header filter without losing the selected value", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    const accountHeader = screen.getByTitle("筛选账户");
+    fireEvent.pointerDown(accountHeader, { button: 0, pointerType: "mouse" });
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "现金" }));
+
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ accountIds: [account.id] })));
+    expect(screen.getByTitle("筛选账户")).toHaveClass("text-primary");
+  });
+
   it("keeps table rows compact and provides full text on hover", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
@@ -204,7 +216,7 @@ describe("TransactionsPage editing", () => {
     expect(screen.getAllByTitle("社区早餐店").some((element) => element.classList.contains("line-clamp-2"))).toBe(true);
   });
 
-  it("reorders a header after a 450ms long press, including nested menu triggers", async () => {
+  it("reorders a header after a 450ms long press from the header surface", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
 
@@ -217,7 +229,7 @@ describe("TransactionsPage editing", () => {
     document.elementFromPoint = vi.fn(() => amountHeader as HTMLElement);
     vi.useFakeTimers();
     try {
-      fireEvent.pointerDown(timeTrigger, { button: 0, pointerType: "mouse", pointerId: 7, clientX: 10, clientY: 10 });
+      fireEvent.pointerDown(timeHeader as HTMLElement, { button: 0, pointerType: "mouse", pointerId: 7, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(document, { pointerId: 7, clientX: 100, clientY: 10 });
       await act(async () => { vi.advanceTimersByTime(449); });
       expect(timeHeader).not.toHaveAttribute("aria-grabbed", "true");
@@ -239,6 +251,23 @@ describe("TransactionsPage editing", () => {
       expect(settingsRepository.set).toHaveBeenCalledWith("transaction_column_order", ["select", "account", "tradeType", "occurredAt", "amount", "category", "tag", "status", "counterparty", "remark", "paymentChannel"]);
     } finally {
       document.elementFromPoint = originalElementFromPoint;
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not let a menu trigger start a column drag", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    const timeTrigger = screen.getByRole("button", { name: "时间" });
+    const timeHeader = timeTrigger.closest("th");
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(timeTrigger, { button: 0, pointerType: "mouse", pointerId: 12, clientX: 10, clientY: 10 });
+      await act(async () => { vi.advanceTimersByTime(500); });
+      expect(timeHeader).not.toHaveAttribute("data-column-dragging");
+      fireEvent.pointerUp(timeTrigger, { pointerId: 12 });
+    } finally {
       vi.useRealTimers();
     }
   });
@@ -296,7 +325,7 @@ describe("TransactionsPage editing", () => {
     const timeHeader = timeTrigger.closest("th");
     vi.useFakeTimers();
     try {
-      fireEvent.pointerDown(timeTrigger, { button: 0, pointerType: "mouse", pointerId: 11 });
+      fireEvent.pointerDown(timeHeader as HTMLElement, { button: 0, pointerType: "mouse", pointerId: 11 });
       await act(async () => { vi.advanceTimersByTime(450); });
       expect(timeHeader).toHaveAttribute("data-column-dragging", "true");
       fireEvent.lostPointerCapture(timeHeader as HTMLElement, { pointerId: 11 });

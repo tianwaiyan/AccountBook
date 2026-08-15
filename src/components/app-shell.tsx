@@ -1,4 +1,5 @@
-import { LayoutDashboard, List, ListTree, Plus, Settings, Upload } from "lucide-react";
+import { LayoutDashboard, List, ListTree, PanelLeftClose, PanelLeftOpen, Plus, Settings, Upload } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/cn";
 
@@ -23,24 +24,35 @@ export function AppShell({
   onQuickEntry: () => void;
   children: React.ReactNode;
 }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const title = navigation.find((item) => item.id === page)?.label ?? "AccountBook";
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-border bg-card lg:flex lg:flex-col">
-        <div className="flex h-16 items-center border-b border-border px-5">
-          <div><p className="text-base font-semibold">AccountBook</p><p className="text-xs text-muted-foreground">我的账本</p></div>
+      <aside className={cn("fixed inset-y-0 left-0 z-30 hidden border-r border-border bg-card transition-[width] lg:flex lg:flex-col", sidebarCollapsed ? "w-16" : "w-60")}>
+        <div className={cn("flex h-16 items-center border-b border-border", sidebarCollapsed ? "justify-center px-2" : "justify-between px-4")}>
+          {!sidebarCollapsed && <div className="min-w-0"><p className="text-base font-semibold">AccountBook</p><p className="text-xs text-muted-foreground">我的账本</p></div>}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            title={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+            aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </Button>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav aria-label="主导航" className="flex-1 space-y-1 p-3">
           {navigation.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => onPageChange(id)} className={cn("flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground", page === id && "bg-accent font-medium text-foreground")}>
-              <Icon className="size-4" />{label}
+            <button key={id} onClick={() => onPageChange(id)} className={cn("flex h-10 w-full items-center gap-3 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground", sidebarCollapsed ? "justify-center px-2" : "px-3", page === id && "bg-accent font-medium text-foreground")} title={sidebarCollapsed ? label : undefined}>
+              <Icon className="size-4 shrink-0" /><span className={sidebarCollapsed ? "sr-only" : undefined}>{label}</span>
             </button>
           ))}
         </nav>
-        <div className="border-t border-border p-3 text-xs text-muted-foreground">本地 SQLite</div>
+        <div className={cn("border-t border-border p-3 text-xs text-muted-foreground", sidebarCollapsed && "text-center")}>{sidebarCollapsed ? <span className="sr-only">本地 SQLite</span> : "本地 SQLite"}</div>
       </aside>
 
-      <div className="lg:pl-60">
+      <div className={cn("transition-[padding] lg:pl-60", sidebarCollapsed && "lg:pl-16")}>
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur sm:px-6">
           <h1 className="text-lg font-semibold">{title}</h1>
           {page !== "settings" && page !== "options" && <Button onClick={onQuickEntry}><Plus className="size-4" /><span className="hidden sm:inline">记一笔</span></Button>}

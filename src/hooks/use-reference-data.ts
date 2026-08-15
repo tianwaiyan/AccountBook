@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { optionRepository, transactionRepository } from "@/services/registry";
 import type { Account, Category, Tag } from "@/types/domain";
 import { DEFAULT_BOOK_ID } from "@/types/domain";
@@ -16,9 +16,10 @@ export function useReferenceData(refreshVersion: number) {
   const [data, setData] = useState<ReferenceData>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadedRef = useRef(false);
 
   const reload = useCallback(async () => {
-    setLoading(true);
+    if (!loadedRef.current) setLoading(true);
     try {
       const [accounts, categories, tags, months] = await Promise.all([
         optionRepository.listAccounts(DEFAULT_BOOK_ID),
@@ -27,6 +28,7 @@ export function useReferenceData(refreshVersion: number) {
         transactionRepository.listAvailableMonths(DEFAULT_BOOK_ID),
       ]);
       setData({ accounts, categories, tags, months });
+      loadedRef.current = true;
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
