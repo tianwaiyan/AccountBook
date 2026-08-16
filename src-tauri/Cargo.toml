@@ -1,6 +1,6 @@
 [package]
 name = "account-book"
-version = "2.0.0"
+version = "2.0.1"
 description = "Local-first personal finance application"
 authors = ["tianwaiyan"]
 edition = "2021"
