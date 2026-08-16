@@ -155,12 +155,45 @@ describe("TransactionsPage editing", () => {
 
     const cancelFilters = screen.getByRole("button", { name: "取消筛选" });
     expect(cancelFilters).toBeDisabled();
-    const amountHeader = screen.getByRole("button", { name: "金额" });
+    const amountHeader = screen.getByTitle("筛选或排序金额");
     fireEvent.pointerDown(amountHeader, { button: 0, pointerType: "mouse" });
     fireEvent.change(await screen.findByPlaceholderText("最低"), { target: { value: "1" } });
     expect(cancelFilters).not.toBeDisabled();
     fireEvent.click(cancelFilters);
     expect(cancelFilters).toBeDisabled();
+  });
+
+  it("keeps the amount filter menu open while entering multiple digits", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    fireEvent.pointerDown(screen.getByTitle("筛选或排序金额"), { button: 0, pointerType: "mouse" });
+    const minimum = await screen.findByPlaceholderText("最低");
+    const maximum = screen.getByPlaceholderText("最高");
+    fireEvent.change(minimum, { target: { value: "12" } });
+    fireEvent.change(minimum, { target: { value: "123" } });
+    fireEvent.change(maximum, { target: { value: "456" } });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("最低")).toHaveValue("123");
+    expect(screen.getByPlaceholderText("最高")).toHaveValue("456");
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ amountMinMinor: 12300, amountMaxMinor: 45600 })));
+  });
+
+  it("keeps the amount filter menu mounted when a filter returns no rows", async () => {
+    let resolveFilteredRows!: (rows: Transaction[]) => void;
+    const filteredRows = new Promise<Transaction[]>((resolve) => { resolveFilteredRows = resolve; });
+    transactionRepository.list.mockResolvedValueOnce([transaction]).mockImplementationOnce(() => filteredRows);
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTitle("筛选或排序金额")).toBeInTheDocument());
+
+    fireEvent.pointerDown(screen.getByTitle("筛选或排序金额"), { button: 0, pointerType: "mouse" });
+    fireEvent.change(await screen.findByPlaceholderText("最低"), { target: { value: "123" } });
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalledTimes(2));
+    resolveFilteredRows([]);
+
+    await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument());
+    expect(screen.getByPlaceholderText("最低")).toHaveValue("123");
   });
 
   it("offers clear sorting actions and removes the old drag handle", async () => {
@@ -171,26 +204,26 @@ describe("TransactionsPage editing", () => {
     expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
     expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: undefined, sortDirection: undefined }));
 
-    const timeHeader = screen.getByRole("button", { name: "时间" });
+    const timeHeader = screen.getByTitle("时间排序");
     fireEvent.pointerDown(timeHeader, { button: 0, pointerType: "mouse" });
     const clearTimeSort = await screen.findByText("取消排序");
     expect(clearTimeSort).toHaveAttribute("data-disabled");
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "升序" }));
     await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: "occurredAt", sortDirection: "asc" })));
-    const timeHeaderAfterSort = screen.getByRole("button", { name: "时间" });
-    fireEvent.pointerDown(timeHeaderAfterSort, { button: 0, pointerType: "mouse" });
+    const timeHeaderAfterSort = screen.getByTitle("时间排序");
+    expect(timeHeaderAfterSort).toBeInTheDocument();
     const clearTimeSortAfterSort = await screen.findByText("取消排序");
     expect(clearTimeSortAfterSort).not.toHaveAttribute("data-disabled");
     fireEvent.click(clearTimeSortAfterSort);
     await waitFor(() => expect(screen.queryByText("取消排序")).not.toBeInTheDocument());
 
-    const amountHeaderAfterClear = screen.getByRole("button", { name: "金额" });
+    const amountHeaderAfterClear = screen.getByTitle("筛选或排序金额");
     fireEvent.pointerDown(amountHeaderAfterClear, { button: 0, pointerType: "mouse" });
     const clearAmountSort = await screen.findByText("取消排序");
     expect(clearAmountSort).toHaveAttribute("data-disabled");
     fireEvent.click(screen.getByRole("button", { name: "金额升序" }));
-    const amountHeaderAfterSort = screen.getByRole("button", { name: "金额" });
-    fireEvent.pointerDown(amountHeaderAfterSort, { button: 0, pointerType: "mouse" });
+    const amountHeaderAfterSort = screen.getByTitle("筛选或排序金额");
+    expect(amountHeaderAfterSort).toBeInTheDocument();
     expect(await screen.findByText("取消排序")).not.toHaveAttribute("data-disabled");
   });
 
@@ -220,8 +253,8 @@ describe("TransactionsPage editing", () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
 
-    const timeTrigger = screen.getByRole("button", { name: "时间" });
-    const amountHeader = screen.getByRole("button", { name: "金额" }).closest("th");
+    const timeTrigger = screen.getByTitle("时间排序");
+    const amountHeader = screen.getByTitle("筛选或排序金额").closest("th");
     const timeHeader = timeTrigger.closest("th");
     expect(timeHeader).toBeTruthy();
     expect(amountHeader).toBeTruthy();
@@ -259,7 +292,7 @@ describe("TransactionsPage editing", () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
 
-    const timeTrigger = screen.getByRole("button", { name: "时间" });
+    const timeTrigger = screen.getByTitle("时间排序");
     const timeHeader = timeTrigger.closest("th");
     vi.useFakeTimers();
     try {
@@ -275,7 +308,7 @@ describe("TransactionsPage editing", () => {
   it("keeps a short press opening the menu and ignores the resize handle", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
-    const timeTrigger = screen.getByRole("button", { name: "时间" });
+    const timeTrigger = screen.getByTitle("时间排序");
     fireEvent.pointerDown(timeTrigger, { button: 0, pointerType: "mouse", pointerId: 8 });
     expect(await screen.findByText("取消排序")).toBeInTheDocument();
 
@@ -283,8 +316,8 @@ describe("TransactionsPage editing", () => {
     vi.clearAllMocks();
     transactionRepository.list.mockResolvedValue([transaction]);
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "金额" })).toBeInTheDocument());
-    const amountHeader = screen.getByRole("button", { name: "金额" }).closest("th");
+    await waitFor(() => expect(screen.getByTitle("筛选或排序金额")).toBeInTheDocument());
+    const amountHeader = screen.getByTitle("筛选或排序金额").closest("th");
     const resizeHandle = amountHeader?.querySelector("[data-column-resize]");
     expect(resizeHandle).toBeTruthy();
     vi.useFakeTimers();
@@ -300,9 +333,9 @@ describe("TransactionsPage editing", () => {
 
   it("cancels a pending header drag without changing the saved order", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "金额" })).toBeInTheDocument());
-    const timeTrigger = screen.getByRole("button", { name: "时间" });
-    const amountHeader = screen.getByRole("button", { name: "金额" }).closest("th");
+    await waitFor(() => expect(screen.getByTitle("筛选或排序金额")).toBeInTheDocument());
+    const timeTrigger = screen.getByTitle("时间排序");
+    const amountHeader = screen.getByTitle("筛选或排序金额").closest("th");
     const originalElementFromPoint = document.elementFromPoint;
     document.elementFromPoint = vi.fn(() => amountHeader as HTMLElement);
     vi.useFakeTimers();
@@ -320,8 +353,8 @@ describe("TransactionsPage editing", () => {
 
   it("cleans up a captured pointer when the header loses capture", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "金额" })).toBeInTheDocument());
-    const timeTrigger = screen.getByRole("button", { name: "时间" });
+    await waitFor(() => expect(screen.getByTitle("筛选或排序金额")).toBeInTheDocument());
+    const timeTrigger = screen.getByTitle("时间排序");
     const timeHeader = timeTrigger.closest("th");
     vi.useFakeTimers();
     try {

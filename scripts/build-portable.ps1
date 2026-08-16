@@ -54,6 +54,18 @@ function Assert-Version([string]$name, [string]$actual, [string]$expected) {
     }
 }
 
+function Get-Sha256([string]$path) {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($path)
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
+
 function Test-ApplicationVersion([string]$value) {
     return $value -match '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
 }
@@ -173,7 +185,7 @@ function Invoke-PortableBuild([string]$version) {
                 $relativePath = $_.FullName.Substring($webRoot.Length).Replace('\', '/')
                 [PSCustomObject]@{
                     path = $relativePath
-                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                    sha256 = Get-Sha256 $_.FullName
                 }
             } |
             Sort-Object -Property path
