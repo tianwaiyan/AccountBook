@@ -15,12 +15,12 @@ export function DropdownMenuContent({ className, ...props }: React.ComponentProp
   );
 }
 
-type DropdownMenuCheckboxItemProps = Omit<React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>, "onSelect"> & {
+type DropdownMenuCheckboxItemProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
 };
 
-export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onClick, onKeyDown, onPointerUp, ...props }: DropdownMenuCheckboxItemProps) {
+export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onClick, onKeyDown, onPointerUp, type = "button", ...props }: DropdownMenuCheckboxItemProps) {
   const suppressPointerClickRef = useRef(false);
   const pointerClickTimerRef = useRef<number | null>(null);
 
@@ -39,8 +39,9 @@ export function DropdownMenuCheckboxItem({ className, children, checked = false,
   };
 
   return (
-    <DropdownMenuPrimitive.Item
+    <button
       {...props}
+      type={type}
       role="menuitemcheckbox"
       aria-checked={checked}
       data-state={checked ? "checked" : "unchecked"}
@@ -66,13 +67,14 @@ export function DropdownMenuCheckboxItem({ className, children, checked = false,
         if (event.defaultPrevented || event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
+          suppressFollowingClick();
           toggle();
         }
       }}
-      className={cn("relative flex h-8 select-none items-center rounded-sm pl-8 pr-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[state=checked]:bg-primary/10 data-[state=checked]:font-medium data-[state=checked]:text-primary", className)}
+      className={cn("relative flex h-8 w-full select-none items-center rounded-sm border-0 bg-transparent pl-8 pr-2 text-left text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[state=checked]:bg-primary/10 data-[state=checked]:font-medium data-[state=checked]:text-primary disabled:cursor-not-allowed disabled:opacity-50", className)}
     >
       <span aria-hidden="true" className="absolute left-2 text-primary">{checked && <Check className="size-4" />}</span>
       {children}
-    </DropdownMenuPrimitive.Item>
+    </button>
   );
 }
