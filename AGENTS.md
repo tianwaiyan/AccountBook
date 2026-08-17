@@ -78,6 +78,7 @@ src-tauri/
 ## 7. 开发与验证
 
 - PowerShell 中统一使用 `npm.cmd`，避免执行策略拦截 `npm.ps1`。
+- 运行 Tauri 开发或便携构建前，使用 Visual Studio 的 `Developer PowerShell for VS 2022` 或 `x64 Native Tools Command Prompt for VS 2022`，确保 x64 MSVC、Windows SDK、`link.exe`、`LIB` 和 `INCLUDE` 环境已加载；进入项目目录后运行 `npm.cmd run tauri:dev` 或 `npm.cmd run portable`。
 - 缺少工具时先全局检索；确认缺失后可自行安装，安装失败则暂停并报告。
 - 修改保持范围清晰，不回退或覆盖无关的用户文件。
 - 发布资源加载必须拒绝绝对路径、路径穿越和 resources/web 目录之外的文件；资源目录中允许存在 manifest 未列出的额外文件。
