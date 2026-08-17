@@ -252,6 +252,20 @@ describe("TransactionsPage editing", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
+  it("activates a header filter when WebView2 only delivers pointer events", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    fireEvent.pointerDown(screen.getByTitle("筛选账户"), { button: 0, pointerType: "mouse" });
+    const accountOption = await screen.findByRole("menuitemcheckbox", { name: "现金" });
+    fireEvent.pointerDown(accountOption, { button: 0, pointerType: "mouse", pointerId: 24 });
+    fireEvent.pointerUp(accountOption, { button: 0, pointerType: "mouse", pointerId: 24 });
+
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ accountIds: [account.id] })));
+    expect(accountOption).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("activates a header filter from Enter and Space without closing the menu", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());

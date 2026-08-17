@@ -1,5 +1,6 @@
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/utils/cn";
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -14,22 +15,64 @@ export function DropdownMenuContent({ className, ...props }: React.ComponentProp
   );
 }
 
-export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onClick, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>) {
+type DropdownMenuCheckboxItemProps = Omit<React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>, "onSelect"> & {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+};
+
+export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onClick, onKeyDown, onPointerUp, ...props }: DropdownMenuCheckboxItemProps) {
+  const suppressPointerClickRef = useRef(false);
+  const pointerClickTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (pointerClickTimerRef.current !== null) window.clearTimeout(pointerClickTimerRef.current);
+  }, []);
+
+  const toggle = () => onCheckedChange?.(!checked);
+  const suppressFollowingClick = () => {
+    suppressPointerClickRef.current = true;
+    if (pointerClickTimerRef.current !== null) window.clearTimeout(pointerClickTimerRef.current);
+    pointerClickTimerRef.current = window.setTimeout(() => {
+      suppressPointerClickRef.current = false;
+      pointerClickTimerRef.current = null;
+    }, 0);
+  };
+
   return (
-    <DropdownMenuPrimitive.CheckboxItem
+    <DropdownMenuPrimitive.Item
       {...props}
-      checked={checked}
-      onSelect={undefined}
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      data-state={checked ? "checked" : "unchecked"}
+      onPointerUp={(event) => {
+        onPointerUp?.(event);
+        if (event.defaultPrevented || (event.pointerType === "mouse" && event.button !== 0)) return;
+        event.preventDefault();
+        suppressFollowingClick();
+        toggle();
+      }}
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
         event.preventDefault();
-        onCheckedChange?.(checked !== true);
+        if (suppressPointerClickRef.current) {
+          suppressPointerClickRef.current = false;
+          return;
+        }
+        toggle();
+      }}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented || event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggle();
+        }
       }}
       className={cn("relative flex h-8 select-none items-center rounded-sm pl-8 pr-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[state=checked]:bg-primary/10 data-[state=checked]:font-medium data-[state=checked]:text-primary", className)}
     >
-      <span className="absolute left-2 text-primary"><DropdownMenuPrimitive.ItemIndicator><Check className="size-4" /></DropdownMenuPrimitive.ItemIndicator></span>
+      <span aria-hidden="true" className="absolute left-2 text-primary">{checked && <Check className="size-4" />}</span>
       {children}
-    </DropdownMenuPrimitive.CheckboxItem>
+    </DropdownMenuPrimitive.Item>
   );
 }
