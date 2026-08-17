@@ -93,7 +93,7 @@ export interface TransactionInput {
   fingerprintVersion?: number | null;
 }
 
-export interface TransactionFilters {
+export interface TransactionQuery {
   bookId: string;
   yearMonth?: string;
   keyword?: string;

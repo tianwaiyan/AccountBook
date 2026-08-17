@@ -9,7 +9,7 @@ import type {
   Tag,
   TrackingRecord,
   Transaction,
-  TransactionFilters,
+  TransactionQuery,
   TransactionInput,
   YearlyCategoryDatum,
 } from "@/types/domain";
@@ -20,7 +20,7 @@ import type {
 } from "@/types/recurrence";
 
 export interface TransactionRepository {
-  list(filters: TransactionFilters): Promise<Transaction[]>;
+  list(query: TransactionQuery): Promise<Transaction[]>;
   listAvailableMonths(bookId: string): Promise<string[]>;
   get(id: string): Promise<Transaction | null>;
   create(bookId: string, input: TransactionInput): Promise<Transaction>;

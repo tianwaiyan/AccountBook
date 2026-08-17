@@ -17,14 +17,14 @@ import type {
   Tag,
   TrackingRecord,
   Transaction,
-  TransactionFilters,
+  TransactionQuery,
   TransactionInput,
   YearlyCategoryDatum,
 } from "@/types/domain";
 import { DEFAULT_BOOK_ID } from "@/types/domain";
 import type { MonthlyPreset, MonthlyPresetGenerationResult, MonthlyPresetInput } from "@/types/recurrence";
 import { recurrenceRuleService } from "@/services/recurrence-rule-service";
-import { matchesKeyword } from "@/utils/search";
+import { matchesKeyword } from "@/utils/transaction-search";
 
 const accounts: Account[] = [
   ["account-alipay", "支付宝"], ["account-wechat", "微信"], ["account-cash", "现金"],
@@ -113,20 +113,21 @@ let monthlyPresets: MonthlyPreset[] = [];
 const monthlyPresetRuns = new Set<string>();
 
 export class DemoTransactionRepository implements TransactionRepository {
-  async list(filters: TransactionFilters): Promise<Transaction[]> {
-    let result = transactions.filter((row) => row.bookId === filters.bookId);
-    if (filters.keyword?.trim()) result = result.filter((row) => matchesKeyword([row.remark, row.categoryName, row.counterparty], filters.keyword!));
-    else if (filters.yearMonth) result = result.filter((row) => row.occurredAt.startsWith(filters.yearMonth!));
-    if (filters.accountIds?.length) result = result.filter((row) => filters.accountIds!.includes(row.accountId));
-    if (filters.tradeTypes?.length) result = result.filter((row) => filters.tradeTypes!.includes(row.tradeType));
-    if (filters.categoryIds?.length) result = result.filter((row) => row.categoryId && filters.categoryIds!.includes(row.categoryId));
-    if (filters.tagIds?.length) result = result.filter((row) => row.tagId && filters.tagIds!.includes(row.tagId));
-    if (filters.statuses?.length) result = result.filter((row) => row.statusCode ? filters.statuses!.includes(row.statusCode) : filters.statuses!.includes("blank"));
-    if (filters.amountMinMinor != null) result = result.filter((row) => Math.abs(row.amountMinor) >= filters.amountMinMinor!);
-    if (filters.amountMaxMinor != null) result = result.filter((row) => Math.abs(row.amountMinor) <= filters.amountMaxMinor!);
-    if (!filters.sortBy) return [...result];
-    const direction = filters.sortDirection === "asc" ? 1 : -1;
-    return [...result].sort((left, right) => direction * (filters.sortBy === "amount" ? Math.abs(left.amountMinor) - Math.abs(right.amountMinor) : left.occurredAt.localeCompare(right.occurredAt)));
+  async list(query: TransactionQuery): Promise<Transaction[]> {
+    let result = transactions.filter((row) => row.bookId === query.bookId);
+    const keyword = query.keyword?.trim() ?? "";
+    if (keyword) result = result.filter((row) => matchesKeyword([row.remark, row.categoryName, row.counterparty], keyword));
+    else if (query.yearMonth) result = result.filter((row) => row.occurredAt.startsWith(query.yearMonth!));
+    if (query.accountIds?.length) result = result.filter((row) => query.accountIds!.includes(row.accountId));
+    if (query.tradeTypes?.length) result = result.filter((row) => query.tradeTypes!.includes(row.tradeType));
+    if (query.categoryIds?.length) result = result.filter((row) => row.categoryId && query.categoryIds!.includes(row.categoryId));
+    if (query.tagIds?.length) result = result.filter((row) => row.tagId && query.tagIds!.includes(row.tagId));
+    if (query.statuses?.length) result = result.filter((row) => row.statusCode ? query.statuses!.includes(row.statusCode) : query.statuses!.includes("blank"));
+    if (query.amountMinMinor != null) result = result.filter((row) => Math.abs(row.amountMinor) >= query.amountMinMinor!);
+    if (query.amountMaxMinor != null) result = result.filter((row) => Math.abs(row.amountMinor) <= query.amountMaxMinor!);
+    if (!query.sortBy) return [...result];
+    const direction = query.sortDirection === "asc" ? 1 : -1;
+    return [...result].sort((left, right) => direction * (query.sortBy === "amount" ? Math.abs(left.amountMinor) - Math.abs(right.amountMinor) : left.occurredAt.localeCompare(right.occurredAt)));
   }
   async listAvailableMonths(): Promise<string[]> { return [...new Set(transactions.map((row) => row.occurredAt.slice(0, 7)))].sort().reverse(); }
   async get(id: string): Promise<Transaction | null> { return transactions.find((row) => row.id === id) ?? null; }

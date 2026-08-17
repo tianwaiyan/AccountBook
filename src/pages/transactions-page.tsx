@@ -19,7 +19,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/components/feedback";
 import { BatchPresetDialog } from "@/features/monthly-presets/batch-preset-dialog";
@@ -27,13 +27,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ReferenceData } from "@/hooks/use-reference-data";
 import { settingsRepository, transactionRepository, transactionService } from "@/services/registry";
-import type { Category, StatusCode, Transaction, TransactionFilters, TransactionInput, TradeType } from "@/types/domain";
+import type { Category, StatusCode, Transaction, TransactionInput, TransactionQuery, TradeType } from "@/types/domain";
 import { DEFAULT_BOOK_ID, statusLabels, tradeTypeLabels } from "@/types/domain";
 import { currentYearMonth, formatTransactionDisplayDateTime, type TransactionDateDisplay } from "@/utils/date";
 import { cn } from "@/utils/cn";
@@ -41,6 +40,7 @@ import { formatMoney, signedMinor } from "@/utils/money";
 
 const DEFAULT_COLUMN_ORDER = ["select", "occurredAt", "account", "tradeType", "amount", "category", "tag", "status", "counterparty", "remark", "paymentChannel"];
 const DESKTOP_TRANSACTION_ROW_HEIGHT = 36;
+type FilterField = "occurredAt" | "account" | "tradeType" | "amount" | "category" | "tag" | "status";
 
 const STATUS_BY_SYSTEM: Record<string, StatusCode[]> = {
   public_expense: ["pending_reimbursement", "settled"],
@@ -79,6 +79,8 @@ export function TransactionsPage({
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
   const [sort, setSort] = useState<{ by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }>({ by: null, direction: "desc" });
+  const [openFilter, setOpenFilter] = useState<FilterField | null>(null);
+  const requestIdRef = useRef(0);
   const [rows, setRows] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasLoadedTransactions, setHasLoadedTransactions] = useState(false);
@@ -137,7 +139,10 @@ export function TransactionsPage({
     return () => window.clearTimeout(timer);
   }, [columnPreferencesReady, columnSizing]);
 
-  const filters = useMemo<TransactionFilters>(() => ({
+  const amountMinMinor = parseFilterAmount(amountMin);
+  const amountMaxMinor = parseFilterAmount(amountMax);
+  const amountError = getFilterAmountError(amountMin, amountMax, amountMinMinor, amountMaxMinor);
+  const filters = useMemo<TransactionQuery>(() => ({
     bookId: DEFAULT_BOOK_ID,
     yearMonth: selectedMonth,
     keyword: deferredKeyword,
@@ -146,17 +151,24 @@ export function TransactionsPage({
     categoryIds,
     tagIds,
     statuses,
-    amountMinMinor: amountMin ? Math.round(Number(amountMin) * 100) : undefined,
-    amountMaxMinor: amountMax ? Math.round(Number(amountMax) * 100) : undefined,
+    amountMinMinor,
+    amountMaxMinor,
     sortBy: sort.by ?? undefined,
     sortDirection: sort.by ? sort.direction : undefined,
-  }), [selectedMonth, deferredKeyword, accountIds, tradeTypes, categoryIds, tagIds, statuses, amountMin, amountMax, sort]);
+  }), [selectedMonth, deferredKeyword, accountIds, tradeTypes, categoryIds, tagIds, statuses, amountMinMinor, amountMaxMinor, sort]);
 
   useEffect(() => {
     let active = true;
+    const requestId = ++requestIdRef.current;
+    if (amountError) {
+      setError(null);
+      setLoading(false);
+      return () => { active = false; };
+    }
     setLoading(true);
+    setError(null);
     transactionRepository.list(filters).then((result) => {
-      if (!active) return;
+      if (!active || requestId !== requestIdRef.current) return;
       setRows(result);
       if (editMode) {
         setBaselines((current) => mergeTransactions(current, result));
@@ -169,9 +181,13 @@ export function TransactionsPage({
       }
       setHasLoadedTransactions(true);
       setError(null);
-    }).catch((reason) => active && setError(reason instanceof Error ? reason.message : String(reason))).finally(() => active && setLoading(false));
+    }).catch((reason) => {
+      if (active && requestId === requestIdRef.current) setError(reason instanceof Error ? reason.message : String(reason));
+    }).finally(() => {
+      if (active && requestId === requestIdRef.current) setLoading(false);
+    });
     return () => { active = false; };
-  }, [filters, refreshVersion, editMode]);
+  }, [amountError, filters, refreshVersion, editMode]);
 
   const visibleRows = useMemo(() => rows.filter((row) => !deletedIds.has(row.id)), [rows, deletedIds]);
 
@@ -275,14 +291,30 @@ export function TransactionsPage({
     { id: "paymentChannel", accessorKey: "paymentChannel", header: "支付方式", size: 130, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellInput value={current.paymentChannel} onChange={(value) => updateDraft(row.original.id, { paymentChannel: value })} /> : <CellText value={current.paymentChannel} />; } },
   ], [selectedIds, editMode, referenceData, dateDisplay]);
 
+  const tradeTypeOptions = (Object.entries(tradeTypeLabels) as Array<[TradeType, string]>).map(([value, label]) => ({ value, label }));
+  const statusOptions = (Object.entries(statusLabels) as Array<[StatusCode, string]>).map(([value, label]) => ({ value, label }));
   const headerFilters: Record<string, React.ReactNode> = {
-    occurredAt: <SortMenu label="时间" active={sort.by === "occurredAt"} direction={sort.direction} onSort={(direction) => setSort({ by: "occurredAt", direction })} onClearSort={() => setSort({ by: null, direction: "desc" })} />,
-    account: <HeaderMultiFilter label="账户" values={accountIds} options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} onChange={setAccountIds} />,
-    tradeType: <HeaderMultiFilter label="收支" values={tradeTypes} options={(Object.entries(tradeTypeLabels) as Array<[TradeType, string]>).map(([value, label]) => ({ value, label }))} onChange={(values) => setTradeTypes(values as TradeType[])} />,
-    amount: <AmountHeaderFilter minimum={amountMin} maximum={amountMax} setMinimum={setAmountMin} setMaximum={setAmountMax} sort={sort} setSort={setSort} onClearSort={() => setSort({ by: null, direction: "desc" })} />,
-    category: <HeaderMultiFilter label="分类" values={categoryIds} options={referenceData.categories.map((item) => ({ value: item.id, label: item.name }))} onChange={setCategoryIds} />,
-    tag: <HeaderMultiFilter label="标签" values={tagIds} options={referenceData.tags.map((item) => ({ value: item.id, label: item.name }))} onChange={setTagIds} />,
-    status: <HeaderMultiFilter label="状态" values={statuses} options={[{ value: "blank", label: "空白" }, ...(Object.entries(statusLabels) as Array<[StatusCode, string]>).map(([value, label]) => ({ value, label }))]} onChange={(values) => setStatuses(values as Array<StatusCode | "blank">)} />,
+    occurredAt: <TransactionFilterMenu field="occurredAt" label="时间" title="时间排序" active={sort.by === "occurredAt"} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <SortFilterContent active={sort.by === "occurredAt"} direction={sort.direction} onSort={(direction) => setSort({ by: "occurredAt", direction })} onClearSort={() => setSort({ by: null, direction: "desc" })} />
+    </TransactionFilterMenu>,
+    account: <TransactionFilterMenu field="account" label="账户" title="筛选账户" active={accountIds.length > 0} selectedCount={accountIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} values={accountIds} onToggle={(value, checked) => updateFilterSelection(setAccountIds, value, checked)} />
+    </TransactionFilterMenu>,
+    tradeType: <TransactionFilterMenu field="tradeType" label="收支" title="筛选收支" active={tradeTypes.length > 0} selectedCount={tradeTypes.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={tradeTypeOptions} values={tradeTypes} onToggle={(value, checked) => updateFilterSelection(setTradeTypes, value as TradeType, checked)} />
+    </TransactionFilterMenu>,
+    amount: <TransactionFilterMenu field="amount" label="金额" title="筛选或排序金额" active={Boolean(amountMin || amountMax) || sort.by === "amount"} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <AmountFilterContent minimum={amountMin} maximum={amountMax} setMinimum={setAmountMin} setMaximum={setAmountMax} sort={sort} setSort={setSort} onClearSort={() => setSort({ by: null, direction: "desc" })} error={amountError} />
+    </TransactionFilterMenu>,
+    category: <TransactionFilterMenu field="category" label="分类" title="筛选分类" active={categoryIds.length > 0} selectedCount={categoryIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.categories.map((item) => ({ value: item.id, label: item.name }))} values={categoryIds} onToggle={(value, checked) => updateFilterSelection(setCategoryIds, value, checked)} />
+    </TransactionFilterMenu>,
+    tag: <TransactionFilterMenu field="tag" label="标签" title="筛选标签" active={tagIds.length > 0} selectedCount={tagIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.tags.map((item) => ({ value: item.id, label: item.name }))} values={tagIds} onToggle={(value, checked) => updateFilterSelection(setTagIds, value, checked)} />
+    </TransactionFilterMenu>,
+    status: <TransactionFilterMenu field="status" label="状态" title="筛选状态" active={statuses.length > 0} selectedCount={statuses.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={[{ value: "blank", label: "空白" }, ...statusOptions]} values={statuses} onToggle={(value, checked) => updateFilterSelection(setStatuses, value as StatusCode | "blank", checked)} />
+    </TransactionFilterMenu>,
   };
 
   const clearColumnFilters = () => {
@@ -294,6 +326,7 @@ export function TransactionsPage({
     setAmountMin("");
     setAmountMax("");
     setSort({ by: null, direction: "desc" });
+    setOpenFilter(null);
   };
 
   const hasActiveTableQuery = Boolean(accountIds.length || tradeTypes.length || categoryIds.length || tagIds.length || statuses.length || amountMin || amountMax || sort.by);
@@ -304,7 +337,7 @@ export function TransactionsPage({
   if (error) return <ErrorState message={error} />;
   return <div className="space-y-4">
     <TransactionToolbar selectedMonth={selectedMonth} onMonthChange={(month: string) => { setSelectedMonth(month); setKeyword(""); clearColumnFilters(); }} months={referenceData.months} keyword={keyword} onKeywordChange={setKeyword} />
-    <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} onClear={clearColumnFilters} />
+    <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} sort={sort} setSort={setSort} onClearSort={() => setSort({ by: null, direction: "desc" })} amountError={amountError} onClear={clearColumnFilters} />
     <div className="flex min-h-9 flex-wrap items-center gap-2">
       {!editMode ? <><Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button><Button variant="outline" onClick={() => setPresetBatchOpen(true)}><SlidersHorizontal className="size-4" />批量记账</Button></> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
       <Button variant="outline" onClick={clearColumnFilters} disabled={!hasActiveTableQuery}><RotateCcw className="size-4" />取消筛选</Button>
@@ -313,7 +346,8 @@ export function TransactionsPage({
       <span className="ml-auto text-xs text-muted-foreground">{deferredKeyword ? "全库" : selectedMonth} · {visibleRows.length} 条{selectedIds.size ? ` · 已选 ${selectedIds.size}` : ""}</span>
     </div>
     {notice && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
-    {loading && !hasLoadedTransactions ? <LoadingState label="正在读取流水" /> : <><DesktopTransactionGrid table={table} editMode={editMode} selectedIds={selectedIds} setColumnOrder={setColumnOrder} headerFilters={headerFilters} /><MobileTransactionCards rows={visibleRows} getEditableRow={getEditableRow} selectedIds={selectedIds} setSelectedIds={setSelectedIds} editMode={editMode} referenceData={referenceData} updateDraft={updateDraft} dateDisplay={dateDisplay} /></>}
+    {amountError && <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{amountError}</div>}
+    {loading && !hasLoadedTransactions ? <LoadingState label="正在读取流水" /> : <><DesktopTransactionGrid table={table} editMode={editMode} selectedIds={selectedIds} setColumnOrder={setColumnOrder} headerFilters={headerFilters} onCloseFilter={() => setOpenFilter(null)} /><MobileTransactionCards rows={visibleRows} getEditableRow={getEditableRow} selectedIds={selectedIds} setSelectedIds={setSelectedIds} editMode={editMode} referenceData={referenceData} updateDraft={updateDraft} dateDisplay={dateDisplay} /></>}
     <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={editMode ? "从草稿移除流水" : "删除流水"} description={editMode ? "删除将在保存整表修改后写入数据库。" : `确定删除已选择的 ${selectedIds.size} 条流水吗？`} confirmLabel="删除" destructive onConfirm={deleteSelected} />
     <BatchDialog open={batchOpen} onOpenChange={setBatchOpen} selectedIds={selectedIds} drafts={drafts} referenceData={referenceData} setDrafts={setDrafts} />
     <BatchPresetDialog open={presetBatchOpen} onOpenChange={setPresetBatchOpen} selectedMonth={selectedMonth} onGenerated={onChanged} />
@@ -326,90 +360,131 @@ function TransactionToolbar({ selectedMonth, onMonthChange, months, keyword, onK
   return <div className="space-y-2"><div className="flex gap-2 overflow-x-auto pb-1"><select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={year} onChange={(event) => { const latest = months.find((month) => month.startsWith(event.target.value)); if (latest) onMonthChange(latest); }}>{years.map((item) => <option key={item} value={item}>{item}年</option>)}</select>{Array.from({ length: 12 }, (_, index) => { const month = `${year}-${String(index + 1).padStart(2, "0")}`; return <Button key={month} size="sm" variant={selectedMonth === month ? "default" : "outline"} disabled={months.length > 0 && !months.includes(month)} onClick={() => onMonthChange(month)}>{index + 1}月</Button>; })}</div><div className="relative"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input className="pl-8" value={keyword} onChange={(event) => onKeywordChange(event.target.value)} placeholder="搜索备注、分类、对方；支持 AND / OR" /></div></div>;
 }
 
-function MobileTransactionFilters({ referenceData, filters, setters, amountMin, amountMax, setAmountMin, setAmountMax, onClear }: { referenceData: ReferenceData; filters: { accountIds: string[]; tradeTypes: TradeType[]; categoryIds: string[]; tagIds: string[]; statuses: Array<StatusCode | "blank"> }; setters: { setAccountIds: (values: string[]) => void; setTradeTypes: (values: TradeType[]) => void; setCategoryIds: (values: string[]) => void; setTagIds: (values: string[]) => void; setStatuses: (values: Array<StatusCode | "blank">) => void }; amountMin: string; amountMax: string; setAmountMin: (value: string) => void; setAmountMax: (value: string) => void; onClear: () => void }) {
+type FilterOption = { value: string; label: string };
+
+function MobileTransactionFilters({ referenceData, filters, setters, amountMin, amountMax, setAmountMin, setAmountMax, sort, setSort, onClearSort, amountError, onClear }: { referenceData: ReferenceData; filters: { accountIds: string[]; tradeTypes: TradeType[]; categoryIds: string[]; tagIds: string[]; statuses: Array<StatusCode | "blank"> }; setters: { setAccountIds: React.Dispatch<React.SetStateAction<string[]>>; setTradeTypes: React.Dispatch<React.SetStateAction<TradeType[]>>; setCategoryIds: React.Dispatch<React.SetStateAction<string[]>>; setTagIds: React.Dispatch<React.SetStateAction<string[]>>; setStatuses: React.Dispatch<React.SetStateAction<Array<StatusCode | "blank">>> }; amountMin: string; amountMax: string; setAmountMin: (value: string) => void; setAmountMax: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void; amountError: string | null; onClear: () => void }) {
+  const [openFilter, setOpenFilter] = useState<FilterField | null>(null);
   const tradeTypeOptions = (Object.entries(tradeTypeLabels) as Array<[TradeType, string]>).map(([value, label]) => ({ value, label }));
   const statusOptions = (Object.entries(statusLabels) as Array<[StatusCode, string]>).map(([value, label]) => ({ value, label }));
-  return <div className="flex flex-wrap gap-2 md:hidden"><MultiFilter label="账户" values={filters.accountIds} options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} onChange={setters.setAccountIds} /><MultiFilter label="收支" values={filters.tradeTypes} options={tradeTypeOptions} onChange={(values) => setters.setTradeTypes(values as TradeType[])} /><MultiFilter label="分类" values={filters.categoryIds} options={referenceData.categories.map((item) => ({ value: item.id, label: item.name }))} onChange={setters.setCategoryIds} /><MultiFilter label="标签" values={filters.tagIds} options={referenceData.tags.map((item) => ({ value: item.id, label: item.name }))} onChange={setters.setTagIds} /><MultiFilter label="状态" values={filters.statuses} options={[{ value: "blank", label: "空白" }, ...statusOptions]} onChange={(values) => setters.setStatuses(values as Array<StatusCode | "blank">)} /><Input className="w-28" value={amountMin} onChange={(event) => setAmountMin(event.target.value)} type="text" inputMode="decimal" placeholder="最低金额" /><Input className="w-28" value={amountMax} onChange={(event) => setAmountMax(event.target.value)} type="text" inputMode="decimal" placeholder="最高金额" /><Button variant="ghost" size="icon" title="清除筛选" aria-label="清除筛选" onClick={onClear}><RotateCcw className="size-4" /></Button></div>;
-}
-
-function MultiFilter({ label, values, options, onChange }: { label: string; values: string[]; options: Array<{ value: string; label: string }>; onChange: (values: string[]) => void }) {
-  return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline"><Filter className="size-4" />{label}{values.length ? ` ${values.length}` : ""}</Button></DropdownMenuTrigger><DropdownMenuContent>{options.map((option) => <DropdownMenuCheckboxItem key={option.value} checked={values.includes(option.value)} onCheckedChange={(checked) => onChange(checked ? [...values, option.value] : values.filter((value) => value !== option.value))}>{option.label}</DropdownMenuCheckboxItem>)}</DropdownMenuContent></DropdownMenu>;
-}
-
-type HeaderDragContextValue = {
-  registerMenuCloser: (closer: () => void) => () => void;
-};
-
-const HeaderDragContext = createContext<HeaderDragContextValue | null>(null);
-
-function useHeaderMenu() {
-  const dragContext = useContext(HeaderDragContext);
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-
-  useEffect(() => dragContext?.registerMenuCloser(close), [dragContext, close]);
-
-  return { open, onOpenChange: setOpen };
-}
-
-function HeaderMenuTrigger({ label, title, active }: { label: string; title: string; active: boolean }) {
-  return <div className={cn("flex min-w-0 w-full items-center gap-1 text-xs font-semibold", active && "text-primary")}>
-    <span className="min-w-0 truncate">{label}</span>
-    <DropdownMenuTrigger asChild>
-      <button type="button" data-header-menu-trigger aria-label={label} className={cn("ml-auto mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active ? "text-primary" : "text-muted-foreground")} title={title}>
-        <ChevronDown className="size-3.5" />
-      </button>
-    </DropdownMenuTrigger>
+  return <div className="flex flex-wrap gap-2 md:hidden">
+    <TransactionFilterMenu variant="toolbar" field="account" label="账户" active={filters.accountIds.length > 0} selectedCount={filters.accountIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} values={filters.accountIds} onToggle={(value, checked) => updateFilterSelection(setters.setAccountIds, value, checked)} />
+    </TransactionFilterMenu>
+    <TransactionFilterMenu variant="toolbar" field="tradeType" label="收支" active={filters.tradeTypes.length > 0} selectedCount={filters.tradeTypes.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={tradeTypeOptions} values={filters.tradeTypes} onToggle={(value, checked) => updateFilterSelection(setters.setTradeTypes, value as TradeType, checked)} />
+    </TransactionFilterMenu>
+    <TransactionFilterMenu variant="toolbar" field="category" label="分类" active={filters.categoryIds.length > 0} selectedCount={filters.categoryIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.categories.map((item) => ({ value: item.id, label: item.name }))} values={filters.categoryIds} onToggle={(value, checked) => updateFilterSelection(setters.setCategoryIds, value, checked)} />
+    </TransactionFilterMenu>
+    <TransactionFilterMenu variant="toolbar" field="tag" label="标签" active={filters.tagIds.length > 0} selectedCount={filters.tagIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={referenceData.tags.map((item) => ({ value: item.id, label: item.name }))} values={filters.tagIds} onToggle={(value, checked) => updateFilterSelection(setters.setTagIds, value, checked)} />
+    </TransactionFilterMenu>
+    <TransactionFilterMenu variant="toolbar" field="status" label="状态" active={filters.statuses.length > 0} selectedCount={filters.statuses.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <MultiFilterContent options={[{ value: "blank", label: "空白" }, ...statusOptions]} values={filters.statuses} onToggle={(value, checked) => updateFilterSelection(setters.setStatuses, value as StatusCode | "blank", checked)} />
+    </TransactionFilterMenu>
+    <TransactionFilterMenu variant="toolbar" field="amount" label="金额" active={Boolean(amountMin || amountMax) || sort.by === "amount"} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <AmountFilterContent minimum={amountMin} maximum={amountMax} setMinimum={setAmountMin} setMaximum={setAmountMax} sort={sort} setSort={setSort} onClearSort={onClearSort} error={amountError} />
+    </TransactionFilterMenu>
+    <Button variant="ghost" size="icon" title="清除筛选" aria-label="清除筛选" onClick={() => { setOpenFilter(null); onClear(); }}><RotateCcw className="size-4" /></Button>
   </div>;
 }
 
-function HeaderMultiFilter({ label, values, options, onChange }: { label: string; values: string[]; options: Array<{ value: string; label: string }>; onChange: (values: string[]) => void }) {
-  const { open, onOpenChange } = useHeaderMenu();
-  return <DropdownMenu open={open} onOpenChange={onOpenChange}><HeaderMenuTrigger label={label} title={`筛选${label}`} active={values.length > 0} /><DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">{options.map((option) => <DropdownMenuCheckboxItem key={option.value} checked={values.includes(option.value)} onCheckedChange={(checked) => onChange(checked ? [...values, option.value] : values.filter((value) => value !== option.value))}>{option.label}</DropdownMenuCheckboxItem>)}</DropdownMenuContent></DropdownMenu>;
+function TransactionFilterMenu({ variant = "header", field, label, title, active, selectedCount = 0, openFilter, setOpenFilter, children }: { variant?: "header" | "toolbar"; field: FilterField; label: string; title?: string; active: boolean; selectedCount?: number; openFilter: FilterField | null; setOpenFilter: React.Dispatch<React.SetStateAction<FilterField | null>>; children: React.ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const open = openFilter === field;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !rootRef.current?.contains(target)) setOpenFilter(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenFilter(null);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open, setOpenFilter]);
+
+  const toggleOpen = () => setOpenFilter((current) => current === field ? null : field);
+  const buttonLabel = selectedCount ? `${label} ${selectedCount}` : label;
+  return <div ref={rootRef} className={cn("relative", variant === "header" ? "min-w-0 w-full" : "shrink-0")}>
+    {variant === "header" ? <div className={cn("flex min-w-0 w-full items-center gap-1 text-xs font-semibold", active && "text-primary")}>
+      <span className="min-w-0 truncate">{label}</span>
+      <button type="button" data-header-menu-trigger aria-label={label} aria-expanded={open} aria-haspopup="menu" className={cn("ml-auto mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active ? "text-primary" : "text-muted-foreground")} title={title} onClick={toggleOpen}>
+        <ChevronDown className="size-3.5" />
+      </button>
+    </div> : <button type="button" aria-label={buttonLabel} aria-expanded={open} aria-haspopup="menu" className={cn("inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active && "border-primary/50 text-primary")} onClick={toggleOpen}>
+      <Filter className="size-4" />{buttonLabel}
+    </button>}
+    {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-50 mt-1 w-56 max-w-[calc(100vw-1rem)] rounded-md border border-border bg-background p-2 text-sm shadow-lg">
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-border px-1 pb-2">
+        <span className="font-medium">{label}</span>
+        <button type="button" aria-label="关闭筛选菜单" className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpenFilter(null)}><X className="size-4" /></button>
+      </div>
+      {children}
+    </div>}
+  </div>;
 }
 
-function SortMenu({ label, active, direction, onSort, onClearSort }: { label: string; active: boolean; direction: "asc" | "desc"; onSort: (direction: "asc" | "desc") => void; onClearSort: () => void }) {
-  const { open, onOpenChange } = useHeaderMenu();
-  return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <HeaderMenuTrigger label={label} title={`${label}排序`} active={active} />
-      <DropdownMenuContent align="start">
-        <DropdownMenuCheckboxItem checked={active && direction === "asc"} onCheckedChange={() => onSort("asc")}>升序</DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem checked={active && direction === "desc"} onCheckedChange={() => onSort("desc")}>降序</DropdownMenuCheckboxItem>
-        <DropdownMenuItem
-          disabled={!active}
-          onClick={onClearSort}
-          className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50"
-        >
-          取消排序
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+function MultiFilterContent({ options, values, onToggle }: { options: FilterOption[]; values: string[]; onToggle: (value: string, checked: boolean) => void }) {
+  return <div className="max-h-64 space-y-1 overflow-y-auto" data-filter-options>
+    {options.map((option) => <label key={option.value} className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-primary/5">
+      <input type="checkbox" checked={values.includes(option.value)} onChange={(event) => onToggle(option.value, event.target.checked)} className="size-4 accent-primary" />
+      <span className="min-w-0 truncate">{option.label}</span>
+    </label>)}
+  </div>;
 }
 
-function AmountHeaderFilter({ minimum, maximum, setMinimum, setMaximum, sort, setSort, onClearSort }: { minimum: string; maximum: string; setMinimum: (value: string) => void; setMaximum: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void }) {
-  const { open, onOpenChange } = useHeaderMenu();
+function SortFilterContent({ active, direction, onSort, onClearSort }: { active: boolean; direction: "asc" | "desc"; onSort: (direction: "asc" | "desc") => void; onClearSort: () => void }) {
+  return <div className="space-y-2">
+    <div className="grid grid-cols-2 gap-2">
+      <Button type="button" size="sm" variant={active && direction === "asc" ? "default" : "outline"} onClick={() => onSort("asc")}>升序</Button>
+      <Button type="button" size="sm" variant={active && direction === "desc" ? "default" : "outline"} onClick={() => onSort("desc")}>降序</Button>
+    </div>
+    <Button type="button" size="sm" variant="ghost" className="w-full" disabled={!active} onClick={onClearSort}>取消排序</Button>
+  </div>;
+}
+
+function AmountFilterContent({ minimum, maximum, setMinimum, setMaximum, sort, setSort, onClearSort, error }: { minimum: string; maximum: string; setMinimum: (value: string) => void; setMaximum: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void; error: string | null }) {
   const active = Boolean(minimum || maximum);
-  // Keep the amount menu mounted while its controlled inputs update.
-  return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <HeaderMenuTrigger label="金额" title="筛选或排序金额" active={active || sort.by === "amount"} />
-      <DropdownMenuContent align="start" className="w-60 space-y-2 p-3">
-        <div className="grid grid-cols-2 gap-1">
-          <Button size="sm" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
-          <Button size="sm" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
-        </div>
-        <DropdownMenuItem disabled={sort.by !== "amount"} onClick={onClearSort} className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50">取消排序</DropdownMenuItem>
-        <Label className="text-xs">金额范围</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <Input value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
-          <Input value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
-        </div>
-        {active && <Button className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  return <div className="w-60 space-y-2">
+    <div className="grid grid-cols-2 gap-2">
+      <Button type="button" size="sm" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
+      <Button type="button" size="sm" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
+    </div>
+    <Button type="button" size="sm" variant="ghost" className="w-full" disabled={sort.by !== "amount"} onClick={onClearSort}>取消排序</Button>
+    <Label className="text-xs">金额范围</Label>
+    <div className="grid grid-cols-2 gap-2">
+      <Input aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
+      <Input aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+    </div>
+    {error && <p className="text-xs text-amber-700" role="alert">{error}</p>}
+    {active && <Button type="button" className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}
+  </div>;
+}
+
+function updateFilterSelection<T extends string>(setter: React.Dispatch<React.SetStateAction<T[]>>, value: T, checked: boolean) {
+  setter((current) => checked ? (current.includes(value) ? current : [...current, value]) : current.filter((item) => item !== value));
+}
+
+function parseFilterAmount(value: string): number | undefined {
+  const text = value.trim();
+  if (!text) return undefined;
+  const numeric = Number(text.replace(/[,\s¥￥元]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+  return Math.round(numeric * 100);
+}
+
+function getFilterAmountError(minimum: string, maximum: string, minimumMinor: number | undefined, maximumMinor: number | undefined): string | null {
+  if (minimum.trim() && minimumMinor === undefined) return "最低金额必须是大于等于 0 的有效数字";
+  if (maximum.trim() && maximumMinor === undefined) return "最高金额必须是大于等于 0 的有效数字";
+  if (minimumMinor !== undefined && maximumMinor !== undefined && minimumMinor > maximumMinor) return "最低金额不能大于最高金额";
+  return null;
 }
 
 type HeaderDragSession = {
@@ -425,10 +500,9 @@ type HeaderDragSession = {
   active: boolean;
 };
 
-function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, headerFilters }: { table: ReturnType<typeof useReactTable<Transaction>>; editMode: boolean; selectedIds: Set<string>; setColumnOrder: React.Dispatch<React.SetStateAction<ColumnOrderState>>; headerFilters: Record<string, React.ReactNode> }) {
+function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, headerFilters, onCloseFilter }: { table: ReturnType<typeof useReactTable<Transaction>>; editMode: boolean; selectedIds: Set<string>; setColumnOrder: React.Dispatch<React.SetStateAction<ColumnOrderState>>; headerFilters: Record<string, React.ReactNode>; onCloseFilter: () => void }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<HeaderDragSession | null>(null);
-  const menuClosersRef = useRef(new Set<() => void>());
   const suppressClickRef = useRef(false);
   const suppressClickTimerRef = useRef<number | null>(null);
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
@@ -438,15 +512,6 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const virtualizer = useVirtualizer({ count: rows.length, getScrollElement: () => parentRef.current, estimateSize: () => DESKTOP_TRANSACTION_ROW_HEIGHT, overscan: 10 });
   const rowItems = editMode ? rows.map((_, index) => ({ index, start: index * DESKTOP_TRANSACTION_ROW_HEIGHT })) : virtualizer.getVirtualItems();
   const totalSize = editMode ? rows.length * DESKTOP_TRANSACTION_ROW_HEIGHT : virtualizer.getTotalSize();
-
-  const registerMenuCloser = useCallback((closer: () => void) => {
-    menuClosersRef.current.add(closer);
-    return () => menuClosersRef.current.delete(closer);
-  }, []);
-  const closeHeaderMenus = useCallback(() => {
-    menuClosersRef.current.forEach((closer) => closer());
-  }, []);
-  const headerDragContext = useMemo<HeaderDragContextValue>(() => ({ registerMenuCloser }), [registerMenuCloser]);
 
   const resetDragVisuals = useCallback(() => {
     setDraggingColumn(null);
@@ -536,7 +601,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
   const startHeaderLongPress = useCallback((headerId: string, event: React.PointerEvent<HTMLElement>) => {
     if (headerId === "select" || (event.pointerType === "mouse" && event.button !== 0)) return;
     const target = event.target as HTMLElement;
-    if (target.closest("[data-column-resize]") || target.closest("[data-header-menu-trigger]")) return;
+    if (target.closest("[data-column-resize]") || target.closest("[data-header-menu-trigger]") || target.closest("[data-filter-popover]")) return;
     const currentTarget = event.currentTarget as HTMLElement;
     const pointerId = event.pointerId;
     const previous = sessionRef.current;
@@ -558,12 +623,12 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
       if (!current || current.pointerId !== pointerId) return;
       current.timer = null;
       current.active = true;
-      closeHeaderMenus();
+      onCloseFilter();
       setDraggingColumn(headerId);
       setDragOverColumnId(current.targetId);
       setDragOffset({ x: current.pointerX - current.startClientX, y: current.pointerY - current.startClientY });
     }, 450);
-  }, [closeHeaderMenus, releasePointer, resetDragVisuals]);
+  }, [onCloseFilter, releasePointer, resetDragVisuals]);
 
   const handleHeaderClickCapture = useCallback((event: React.MouseEvent<HTMLElement>) => {
     if (!suppressClickRef.current) return;
@@ -572,7 +637,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
     event.stopPropagation();
   }, []);
 
-  return <HeaderDragContext.Provider value={headerDragContext}><div ref={parentRef} className="scrollbar-thin hidden h-[520px] overflow-auto rounded-lg border border-border bg-card md:block">
+  return <div ref={parentRef} className="scrollbar-thin hidden h-[520px] overflow-auto rounded-lg border border-border bg-card md:block">
     <table className="grid min-w-max text-sm">
       <thead className="sticky top-0 z-10 grid border-b border-border bg-muted">
         <tr className="flex w-full">
@@ -602,7 +667,7 @@ function DesktopTransactionGrid({ table, editMode, selectedIds, setColumnOrder, 
         })}
       </tbody>
     </table>
-  </div></HeaderDragContext.Provider>;
+  </div>;
 }
 
 function MobileTransactionCards({ rows, getEditableRow, selectedIds, setSelectedIds, editMode, referenceData, updateDraft, dateDisplay }: { rows: Transaction[]; getEditableRow: (row: Transaction) => Transaction; selectedIds: Set<string>; setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>; editMode: boolean; referenceData: ReferenceData; updateDraft: (id: string, patch: Partial<Transaction>) => void; dateDisplay: TransactionDateDisplay }) {

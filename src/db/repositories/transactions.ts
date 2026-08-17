@@ -4,10 +4,10 @@ import type {
   ImportCandidate,
   ImportCommitResult,
   Transaction,
-  TransactionFilters,
+  TransactionQuery,
   TransactionInput,
 } from "@/types/domain";
-import { parseKeywordExpression } from "@/utils/search";
+import { buildTransactionSql } from "@/db/repositories/transaction-query";
 
 const BASE_SELECT = `
   SELECT
@@ -59,67 +59,9 @@ async function ensureAccount(database: PortableDatabaseClient, bookId: string, n
 }
 
 export class SqliteTransactionRepository implements TransactionRepository {
-  async list(filters: TransactionFilters): Promise<Transaction[]> {
+  async list(query: TransactionQuery): Promise<Transaction[]> {
     const database = await getDatabase();
-    const conditions = ["t.book_id = ?", "t.deleted_at IS NULL"];
-    const params: unknown[] = [filters.bookId];
-
-    if (filters.yearMonth && !filters.keyword?.trim()) {
-      conditions.push("substr(t.occurred_at, 1, 7) = ?");
-      params.push(filters.yearMonth);
-    }
-    if (filters.keyword?.trim()) {
-      const groups = parseKeywordExpression(filters.keyword);
-      if (groups.length) {
-        const groupSql = groups.map((terms) => {
-          const termSql = terms.map((term) => {
-            const like = `%${term}%`;
-            params.push(like, like, like);
-            return "(t.remark LIKE ? OR COALESCE(c.name, t.source_category, '') LIKE ? OR t.counterparty LIKE ?)";
-          });
-          return `(${termSql.join(" AND ")})`;
-        });
-        conditions.push(`(${groupSql.join(" OR ")})`);
-      }
-    }
-    if (filters.accountIds?.length) {
-      conditions.push(`t.account_id IN (${placeholders(filters.accountIds)})`);
-      params.push(...filters.accountIds);
-    }
-    if (filters.tradeTypes?.length) {
-      conditions.push(`t.trade_type IN (${placeholders(filters.tradeTypes)})`);
-      params.push(...filters.tradeTypes);
-    }
-    if (filters.categoryIds?.length) {
-      conditions.push(`t.category_id IN (${placeholders(filters.categoryIds)})`);
-      params.push(...filters.categoryIds);
-    }
-    if (filters.tagIds?.length) {
-      conditions.push(`t.tag_id IN (${placeholders(filters.tagIds)})`);
-      params.push(...filters.tagIds);
-    }
-    if (filters.statuses?.length) {
-      const statuses = filters.statuses.filter((status) => status !== "blank");
-      const clauses: string[] = [];
-      if (statuses.length) {
-        clauses.push(`t.status_code IN (${placeholders(statuses)})`);
-        params.push(...statuses);
-      }
-      if (filters.statuses.includes("blank")) clauses.push("t.status_code IS NULL");
-      conditions.push(`(${clauses.join(" OR ")})`);
-    }
-    if (filters.amountMinMinor != null) {
-      conditions.push("ABS(t.amount_minor) >= ?");
-      params.push(filters.amountMinMinor);
-    }
-    if (filters.amountMaxMinor != null) {
-      conditions.push("ABS(t.amount_minor) <= ?");
-      params.push(filters.amountMaxMinor);
-    }
-
-    const sortColumn = filters.sortBy === "amount" ? "ABS(t.amount_minor)" : filters.sortBy === "occurredAt" ? "t.occurred_at" : null;
-    const sortDirection = filters.sortDirection === "asc" ? "ASC" : "DESC";
-    const orderBy = sortColumn ? ` ORDER BY ${sortColumn} ${sortDirection}, t.id DESC` : " ORDER BY t.rowid ASC";
+    const { conditions, params, orderBy } = buildTransactionSql(query);
     return database.select<Transaction[]>(
       `${BASE_SELECT} WHERE ${conditions.join(" AND ")}${orderBy}`,
       params,
