@@ -81,6 +81,12 @@ describe("TransactionsPage editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "修改流水" }));
   }
 
+  function clickMenuItem(element: HTMLElement, pointerId: number) {
+    fireEvent.pointerDown(element, { button: 0, pointerType: "mouse", pointerId });
+    fireEvent.pointerUp(element, { button: 0, pointerType: "mouse", pointerId });
+    fireEvent.click(element);
+  }
+
   it("keeps a desktop text input focused while the draft changes repeatedly", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
@@ -208,13 +214,14 @@ describe("TransactionsPage editing", () => {
     fireEvent.pointerDown(timeHeader, { button: 0, pointerType: "mouse" });
     const clearTimeSort = await screen.findByText("取消排序");
     expect(clearTimeSort).toHaveAttribute("data-disabled");
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "升序" }));
+    clickMenuItem(screen.getByRole("menuitemcheckbox", { name: "升序" }), 31);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: "occurredAt", sortDirection: "asc" })));
     const timeHeaderAfterSort = screen.getByTitle("时间排序");
     expect(timeHeaderAfterSort).toBeInTheDocument();
     const clearTimeSortAfterSort = await screen.findByText("取消排序");
     expect(clearTimeSortAfterSort).not.toHaveAttribute("data-disabled");
-    fireEvent.click(clearTimeSortAfterSort);
+    clickMenuItem(clearTimeSortAfterSort, 32);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: undefined, sortDirection: undefined })));
     await waitFor(() => expect(screen.queryByText("取消排序")).not.toBeInTheDocument());
 
     const amountHeaderAfterClear = screen.getByTitle("筛选或排序金额");
@@ -224,7 +231,10 @@ describe("TransactionsPage editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "金额升序" }));
     const amountHeaderAfterSort = screen.getByTitle("筛选或排序金额");
     expect(amountHeaderAfterSort).toBeInTheDocument();
-    expect(await screen.findByText("取消排序")).not.toHaveAttribute("data-disabled");
+    const clearAmountSortAfterSort = await screen.findByText("取消排序");
+    expect(clearAmountSortAfterSort).not.toHaveAttribute("data-disabled");
+    clickMenuItem(clearAmountSortAfterSort, 33);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: undefined, sortDirection: undefined })));
   });
 
   it("applies a header filter without losing the selected value", async () => {
@@ -233,10 +243,46 @@ describe("TransactionsPage editing", () => {
 
     const accountHeader = screen.getByTitle("筛选账户");
     fireEvent.pointerDown(accountHeader, { button: 0, pointerType: "mouse" });
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "现金" }));
+    const callsBeforeFilter = transactionRepository.list.mock.calls.length;
+    clickMenuItem(await screen.findByRole("menuitemcheckbox", { name: "现金" }), 21);
 
     await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ accountIds: [account.id] })));
+    expect(transactionRepository.list.mock.calls.length).toBe(callsBeforeFilter + 1);
     expect(screen.getByTitle("筛选账户")).toHaveClass("text-primary");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("activates a header filter from Enter and Space without closing the menu", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    fireEvent.pointerDown(screen.getByTitle("筛选账户"), { button: 0, pointerType: "mouse" });
+    const accountOption = await screen.findByRole("menuitemcheckbox", { name: "现金" });
+    accountOption.focus();
+    fireEvent.keyDown(accountOption, { key: "Enter", code: "Enter" });
+
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ accountIds: [account.id] })));
+    expect(accountOption).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(accountOption, { key: " ", code: "Space" });
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ accountIds: [] })));
+    expect(accountOption).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("keeps a multi-select filter menu open across consecutive pointer clicks", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    fireEvent.pointerDown(screen.getByTitle("筛选收支"), { button: 0, pointerType: "mouse" });
+    clickMenuItem(await screen.findByRole("menuitemcheckbox", { name: "支出" }), 22);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ tradeTypes: ["expense"] })));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    clickMenuItem(screen.getByRole("menuitemcheckbox", { name: "收入" }), 23);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ tradeTypes: ["expense", "income"] })));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("keeps table rows compact and provides full text on hover", async () => {

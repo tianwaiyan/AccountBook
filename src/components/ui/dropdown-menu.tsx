@@ -14,15 +14,17 @@ export function DropdownMenuContent({ className, ...props }: React.ComponentProp
   );
 }
 
-export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onSelect, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>) {
+export function DropdownMenuCheckboxItem({ className, children, checked = false, onCheckedChange, onClick, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
       {...props}
       checked={checked}
-      onSelect={(event) => {
+      onSelect={undefined}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented) return;
         event.preventDefault();
-        onSelect?.(event);
-        onCheckedChange?.(checked === true ? false : true);
+        onCheckedChange?.(checked !== true);
       }}
       className={cn("relative flex h-8 select-none items-center rounded-sm pl-8 pr-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[state=checked]:bg-primary/10 data-[state=checked]:font-medium data-[state=checked]:text-primary", className)}
     >

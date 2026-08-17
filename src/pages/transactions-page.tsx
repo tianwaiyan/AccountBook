@@ -370,13 +370,46 @@ function HeaderMultiFilter({ label, values, options, onChange }: { label: string
 
 function SortMenu({ label, active, direction, onSort, onClearSort }: { label: string; active: boolean; direction: "asc" | "desc"; onSort: (direction: "asc" | "desc") => void; onClearSort: () => void }) {
   const { open, onOpenChange } = useHeaderMenu();
-  return <DropdownMenu open={open} onOpenChange={onOpenChange}><HeaderMenuTrigger label={label} title={`${label}排序`} active={active} /><DropdownMenuContent align="start"><DropdownMenuCheckboxItem checked={active && direction === "asc"} onCheckedChange={() => onSort("asc")}>升序</DropdownMenuCheckboxItem><DropdownMenuCheckboxItem checked={active && direction === "desc"} onCheckedChange={() => onSort("desc")}>降序</DropdownMenuCheckboxItem><DropdownMenuItem disabled={!active} onSelect={onClearSort} className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50">取消排序</DropdownMenuItem></DropdownMenuContent></DropdownMenu>;
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <HeaderMenuTrigger label={label} title={`${label}排序`} active={active} />
+      <DropdownMenuContent align="start">
+        <DropdownMenuCheckboxItem checked={active && direction === "asc"} onCheckedChange={() => onSort("asc")}>升序</DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={active && direction === "desc"} onCheckedChange={() => onSort("desc")}>降序</DropdownMenuCheckboxItem>
+        <DropdownMenuItem
+          disabled={!active}
+          onClick={onClearSort}
+          className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50"
+        >
+          取消排序
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function AmountHeaderFilter({ minimum, maximum, setMinimum, setMaximum, sort, setSort, onClearSort }: { minimum: string; maximum: string; setMinimum: (value: string) => void; setMaximum: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void }) {
   const { open, onOpenChange } = useHeaderMenu();
   const active = Boolean(minimum || maximum);
-  return <DropdownMenu open={open} onOpenChange={onOpenChange}><HeaderMenuTrigger label="金额" title="筛选或排序金额" active={active || sort.by === "amount"} /><DropdownMenuContent align="start" className="w-60 space-y-2 p-3"><div className="grid grid-cols-2 gap-1"><Button size="sm" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button><Button size="sm" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button></div><DropdownMenuItem disabled={sort.by !== "amount"} onSelect={onClearSort} className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50">取消排序</DropdownMenuItem><Label className="text-xs">金额范围</Label><div className="grid grid-cols-2 gap-2"><Input value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" /><Input value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" /></div>{active && <Button className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}</DropdownMenuContent></DropdownMenu>;
+  // Keep the amount menu mounted while its controlled inputs update.
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <HeaderMenuTrigger label="金额" title="筛选或排序金额" active={active || sort.by === "amount"} />
+      <DropdownMenuContent align="start" className="w-60 space-y-2 p-3">
+        <div className="grid grid-cols-2 gap-1">
+          <Button size="sm" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
+          <Button size="sm" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
+        </div>
+        <DropdownMenuItem disabled={sort.by !== "amount"} onClick={onClearSort} className="flex h-8 select-none items-center rounded-sm px-2 text-sm outline-none transition-colors focus:bg-primary/5 focus:text-primary data-[highlighted]:bg-primary/5 data-[highlighted]:text-primary data-[disabled]:opacity-50">取消排序</DropdownMenuItem>
+        <Label className="text-xs">金额范围</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <Input value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
+          <Input value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+        </div>
+        {active && <Button className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 type HeaderDragSession = {
