@@ -8,11 +8,11 @@ AccountBook 是一款面向个人和家庭使用的 Windows 本地记账软件�
 - 支持快速记账、流水筛选、排序、批量编辑和月度预设。
 - 支持支付宝 CSV/XLSX、微信 CSV/XLSX 和标准 CSV 导入。
 - 提供收入、支出、结余、趋势和分类统计。
-- 使用多文件绿色版发布包，不需要安装程序。
+- 使用绿色版压缩包，不需要安装程序。
 
 ## 下载和运行
 
-GitHub Release 提供 `AccountBook-v<version>-windows-x64.zip`，其中 `<version>` 是应用版本，例如 `2.1.0`。请先将压缩包完整解压到普通且具有写入权限的文件夹，例如 `D:\AccountBook`，再双击其中的 `AccountBook\AccountBook.exe`。
+GitHub Release 提供 `AccountBook-v<version>-windows-x64.zip`，其中 `<version>` 是应用版本。请先将压缩包完整解压到普通且具有写入权限的文件夹，例如 `D:\AccountBook`，再双击其中的 `AccountBook\AccountBook.exe`。
 
 发布包结构如下：
 
@@ -63,40 +63,3 @@ backups/                       # 默认备份目录
 - Microsoft Edge WebView2 Runtime
 - 软件所在目录具有写入权限
 
-## 开发和构建
-
-开发环境继续使用 Vite 和 Tauri 开发模式。便携发布是手动操作，不会随着 Git commit 自动执行。首次从源码构建前，先安装锁定的项目依赖：
-
-```powershell
-npm.cmd ci
-```
-
-直接运行时，脚本会先显示当前版本并询问本次发布版本号；直接回车表示沿用当前版本：
-
-```powershell
-npm.cmd run portable
-```
-
-自动化执行时追加 `-NoPause` 会跳过询问并沿用当前版本：
-
-```powershell
-npm.cmd run portable -- -NoPause
-```
-
-同步应用版本并构建发布包，例如：
-
-```powershell
-npm.cmd run portable -- -Version 2.1.0
-```
-
-脚本只同步 `package.json`、`package-lock.json` 根包版本字段、Tauri 配置和 Rust 应用包版本；版本必须是严格的 `MAJOR.MINOR.PATCH` 格式。自动化执行时可追加 `-NoPause`，错误会返回非零退出码且不会等待输入。依赖缺失时请先执行 `npm.cmd ci`；版本不一致或构建失败时脚本会显示具体原因，交互式执行会暂停等待确认。
-
-构建结果位于仓库的 `release/` 目录：
-
-```text
-release/
-├─ staging/AccountBook/        # 发布包临时目录
-└─ AccountBook-v<version>-windows-x64.zip
-```
-
-发布脚本不会生成或更新仓库根目录的裸 EXE。`release/staging/` 和发布 ZIP 只用于手动发布，不应加入 Git commit；GitHub Release 只上传运行 ZIP。GitHub 会自动提供源码归档，不需要另行上传源码 ZIP，也不上传单独的裸 EXE。
