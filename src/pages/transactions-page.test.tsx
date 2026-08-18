@@ -148,6 +148,21 @@ describe("TransactionsPage editing", () => {
     expect(selectedOption.querySelector("svg")).toBeNull();
   });
 
+  it("matches filter menu styling with draft select options", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTitle("筛选账户"));
+    const menu = await screen.findByRole("menu");
+    expect(menu).toHaveClass("z-[70]", "max-h-72", "p-1", "shadow-lg");
+
+    const accountOption = screen.getByRole("checkbox", { name: "现金" });
+    const optionRow = accountOption.closest("label");
+    expect(optionRow).toHaveClass("h-8", "rounded-sm", "text-sm");
+    fireEvent.click(accountOption);
+    expect(optionRow).toHaveClass("bg-primary/10", "font-medium", "text-primary");
+  });
+
   it("keeps filter cancellation available while editing", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());

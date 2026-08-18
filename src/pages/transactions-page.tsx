@@ -421,8 +421,8 @@ function TransactionFilterMenu({ variant = "header", field, label, title, active
     </div> : <button type="button" aria-label={buttonLabel} aria-expanded={open} aria-haspopup="menu" className={cn("inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active && "border-primary/50 text-primary")} onClick={toggleOpen}>
       <Filter className="size-4" />{buttonLabel}
     </button>}
-    {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-50 mt-1 w-56 max-w-[calc(100vw-1rem)] rounded-md border border-border bg-background p-2 text-sm shadow-lg">
-      <div className="mb-2 flex items-center justify-between gap-2 border-b border-border px-1 pb-2">
+    {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-[70] mt-1 max-h-72 w-56 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border bg-background p-1 text-sm shadow-lg">
+      <div className="mb-1 flex h-8 items-center justify-between gap-2 rounded-sm px-2">
         <span className="font-medium">{label}</span>
         <button type="button" aria-label="关闭筛选菜单" className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpenFilter(null)}><X className="size-4" /></button>
       </div>
@@ -432,11 +432,14 @@ function TransactionFilterMenu({ variant = "header", field, label, title, active
 }
 
 function MultiFilterContent({ options, values, onToggle }: { options: FilterOption[]; values: string[]; onToggle: (value: string, checked: boolean) => void }) {
-  return <div className="max-h-64 space-y-1 overflow-y-auto" data-filter-options>
-    {options.map((option) => <label key={option.value} className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-primary/5">
-      <input type="checkbox" checked={values.includes(option.value)} onChange={(event) => onToggle(option.value, event.target.checked)} className="size-4 accent-primary" />
-      <span className="min-w-0 truncate">{option.label}</span>
-    </label>)}
+  return <div className="max-h-64 overflow-y-auto" data-filter-options>
+    {options.map((option) => {
+      const checked = values.includes(option.value);
+      return <label key={option.value} className={cn("flex h-8 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-sm outline-none transition-colors hover:bg-primary/5 hover:text-primary", checked && "bg-primary/10 font-medium text-primary")}>
+        <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="size-4 accent-primary" />
+        <span className="min-w-0 truncate">{option.label}</span>
+      </label>;
+    })}
   </div>;
 }
 
