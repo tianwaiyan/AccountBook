@@ -460,10 +460,12 @@ function AmountFilterContent({ minimum, maximum, setMinimum, setMaximum, sort, s
       <FilterOptionButton selected={sort.by === "amount" && sort.direction === "desc"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</FilterOptionButton>
       <FilterActionButton disabled={sort.by !== "amount"} onClick={onClearSort}>取消排序</FilterActionButton>
     </div>
-    <Label className="block px-[10px] py-1 text-xs text-muted-foreground">金额范围</Label>
-    <div className="space-y-1">
-      <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 focus-visible:border-input" aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
-      <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 focus-visible:border-input" aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+    <div data-amount-range-section className="mt-2 space-y-1 border-t border-border/60 pt-2">
+      <Label className="block px-[10px] py-1 text-sm font-medium text-foreground">范围筛选</Label>
+      <div className="space-y-1">
+        <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 font-normal placeholder:text-muted-foreground/60 focus-visible:border-input" aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
+        <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 font-normal placeholder:text-muted-foreground/60 focus-visible:border-input" aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+      </div>
     </div>
     {error && <p className="text-xs text-amber-700" role="alert">{error}</p>}
     {active && <FilterActionButton onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</FilterActionButton>}

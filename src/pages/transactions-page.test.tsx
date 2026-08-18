@@ -217,9 +217,13 @@ describe("TransactionsPage editing", () => {
     expect(amountOptions).not.toHaveClass("grid-cols-2");
     expect(screen.getByRole("button", { name: "金额升序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
     expect(screen.getByRole("button", { name: "金额降序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
-    expect(screen.getByPlaceholderText("最低")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
+    expect(screen.queryByText("金额范围")).toBeNull();
+    const amountRangeSection = amountMenu.querySelector("[data-amount-range-section]");
+    expect(amountRangeSection).toHaveClass("mt-2", "border-t", "border-border/60", "pt-2");
+    expect(screen.getByText("范围筛选")).toHaveClass("text-sm", "font-medium", "text-foreground");
+    expect(screen.getByPlaceholderText("最低")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "font-normal", "placeholder:text-muted-foreground/60", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
     expect(screen.getByPlaceholderText("最低")).not.toHaveClass("border-input");
-    expect(screen.getByPlaceholderText("最高")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
+    expect(screen.getByPlaceholderText("最高")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "font-normal", "placeholder:text-muted-foreground/60", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
     expect(screen.getByPlaceholderText("最高")).not.toHaveClass("border-input");
   });
 
