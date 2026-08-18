@@ -1,6 +1,6 @@
 # AccountBook Codex 工作规范
 
-本文件只记录长期有效的工作规则。开始任务前阅读本文件、`.codex/STATE.md`、`.codex/TASK.md`、相关源码和 `更新记录.md`；不要把聊天记录当作唯一项目记忆。
+本文件只记录长期有效的工作规则。开始任务前阅读本文件、`.codex/STATE.md`、`.codex/TASK.md`、相关源码和 `更新记录.md`。
 
 规则冲突优先级为：用户当前要求、`AGENTS.md`、`STATE.md`、`TASK.md`、`DECISIONS.md`、实际代码与配置、其他文档、README、历史聊天。若文档与代码行为冲突，以代码为事实并修正文档，不为了符合旧文档修改代码。
 
@@ -41,6 +41,7 @@
 - 项目文件、大型过程文件、分析输出和临时脚本优先写入 D 盘；不要把 C 盘作为默认项目工作目录。
 - 能配置临时目录时优先使用项目 `.codex/tmp/` 或 D 盘临时目录；系统工具必须使用 C 盘时，不破坏系统目录，记录限制并尽可能清理本次产物。
 - 清理前必须确认范围；未知文件、用户明确保留的文件、数据库和备份不得删除。
+- 对于已经存在的 `.md` 文件，优先使用 `apply_patch` 进行局部修改；新建 `.md` 文件时可直接创建。
 
 ## 5. 架构边界
 
@@ -62,17 +63,22 @@
 
 ## 7. 修改前调查
 
-- 非 trivial 任务先运行 `git status --short`，再阅读相关代码、类型、调用方和测试。
-- 涉及 SQLite、导入、导出、备份、恢复、Tauri command 或发布时，额外检查 schema、migration、路径和相关脚本。
+- 开始任务时先执行 `git status --short`，确认已有未提交修改，不得覆盖、回退、删除或擅自提交与当前任务无关的修改。
 - 先确定影响边界和验证范围，再修改；不要看到一个文件就大规模重写。
 - 发现与当前任务无关的问题只记录建议，不顺手扩大范围。
+- 快速检查 `.codex/STATE.md` 和 `.codex/TASK.md`，判断是否存在与当前任务相关的项目状态或未完成任务。仅在内容相关时深入阅读。
+- 如果任务涉及架构、数据库、schema、migration、数据模型、backup/restore、import/export 或其他长期设计，阅读 `.codex/DECISIONS.md`，额外检查 schema、migration、路径和相关脚本。
+- 小型修改通常无需更新 `TASK.md`；需要多个步骤、涉及多个模块或需要持续跟踪的任务，应使用 `TASK.md` 记录目标、进度、验证结果和下一步。
+- 仅在项目当前状态发生实质变化时更新 `STATE.md`。
+- 仅在产生长期有效的架构或产品决策时更新 `DECISIONS.md`。
+- 长任务发生重要阶段变化时更新 `TASK.md`；发生 context compaction 前，确保必要状态已写入 `TASK.md` 和 `STATE.md` 。
 
 ## 8. 验证与发布
 
 - 前端修改按需运行 `npm.cmd test` 和 `npm.cmd run build`；本项目中 `test` 已执行 `vitest run`。
 - Rust/Tauri 修改按需在 `src-tauri/` 运行 `cargo fmt --check`、`cargo test`、`cargo check` 和 `cargo clippy --all-targets -- -D warnings`。
 - UI 修改检查桌面布局；存储、导入、备份和恢复修改补充对应的隔离数据验证。
-- `scripts/build-portable.ps1` 会重建 `release/staging/` 和版本 ZIP，可能清理已有发布产物；只在任务需要且用户授权时运行，不自动生成根目录 EXE。
+- `scripts/build-portable.ps1` 会重建 `release/staging/` 和版本 ZIP，可能清理已有发布产物；只在任务需要且用户授权时运行。
 - 便携构建前须确认版本字段、外部资源、`bundle.active = false` 和 `accountbook://localhost` 与实际配置一致；GitHub Release 由用户手动执行。
 
 ## 9. Git、文档与状态
@@ -83,3 +89,4 @@
 - 项目修改后在 `更新记录.md` 顶部追加真实的长期变化，不记录测试过程；历史记录不重写。
 - `AGENTS.md` 只放永久规则；`.codex/STATE.md` 放当前项目状态；`.codex/TASK.md` 放当前任务；`.codex/DECISIONS.md` 放长期决策。
 - 长任务完成重要阶段后更新状态；发生 context compaction 前，确保状态文件能独立说明已完成内容、阻塞点和下一步。
+- 修改后提供本地预览的浏览器地址。
