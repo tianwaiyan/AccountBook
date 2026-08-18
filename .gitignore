@@ -2,8 +2,8 @@ node_modules/
 dist/
 release/
 AccountBook.exe
-data/*
-backups/*
+data/
+backups/
 .vite/
 coverage/
 src-tauri/target/
