@@ -362,7 +362,7 @@ function TransactionToolbar({ selectedMonth, onMonthChange, months, keyword, onK
 }
 
 type FilterOption = { value: string; label: string };
-const FILTER_OPTION_CLASS = "flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-[10px] py-1 text-left text-sm font-normal outline-none transition-colors hover:bg-primary/5 hover:text-primary focus-within:bg-primary/5 focus-within:text-primary disabled:cursor-not-allowed disabled:opacity-50";
+const FILTER_OPTION_CLASS = "relative flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-[10px] py-1 text-left text-sm font-normal outline-none transition-colors hover:bg-primary/5 hover:text-primary focus-within:bg-primary/5 focus-within:text-primary disabled:cursor-not-allowed disabled:opacity-50";
 const FILTER_OPTION_SELECTED_CLASS = "bg-primary/10 font-medium text-primary";
 const FILTER_ACTION_CLASS = "flex h-8 w-full items-center rounded-sm px-[10px] py-1 text-left text-sm font-normal outline-none transition-colors hover:bg-primary/5 hover:text-primary focus-visible:bg-primary/5 focus-visible:text-primary disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -436,7 +436,7 @@ function MultiFilterContent({ options, values, onToggle }: { options: FilterOpti
     {options.map((option) => {
       const checked = values.includes(option.value);
       return <label key={option.value} className={cn(FILTER_OPTION_CLASS, checked && FILTER_OPTION_SELECTED_CLASS)}>
-        <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="sr-only" />
+        <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" />
         <span data-filter-check aria-hidden="true" className={cn("flex size-4 shrink-0 items-center justify-center text-transparent", checked && "text-primary")}><Check className="size-4" /></span>
         <span className="min-w-0 truncate">{option.label}</span>
       </label>;

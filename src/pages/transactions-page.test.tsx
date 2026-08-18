@@ -188,8 +188,8 @@ describe("TransactionsPage editing", () => {
 
     const accountOption = screen.getByRole("checkbox", { name: "现金" });
     const optionRow = accountOption.closest("label");
-    expect(optionRow).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm", "font-normal");
-    expect(accountOption).toHaveClass("sr-only");
+    expect(optionRow).toHaveClass("relative", "h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm", "font-normal");
+    expect(accountOption).toHaveClass("absolute", "inset-0", "z-10", "size-full", "cursor-pointer", "opacity-0");
     expect(optionRow?.querySelector("[data-filter-check]")).toHaveClass("text-transparent");
     expect(optionRow).not.toHaveClass("bg-primary/10", "font-medium", "text-primary");
     fireEvent.click(accountOption);
