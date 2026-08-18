@@ -184,13 +184,17 @@ describe("TransactionsPage editing", () => {
     fireEvent.click(screen.getByTitle("筛选账户"));
     const menu = await screen.findByRole("menu");
     expect(menu).toHaveClass("z-[70]", "max-h-72", "w-max", "min-w-[110px]", "max-w-[calc(100vw-1rem)]", "border-2", "p-[6px]", "shadow-lg");
-    expect(menu.firstElementChild).toHaveClass("px-[10px]");
+    expect(screen.queryByRole("button", { name: "关闭筛选菜单" })).toBeNull();
 
     const accountOption = screen.getByRole("checkbox", { name: "现金" });
     const optionRow = accountOption.closest("label");
-    expect(optionRow).toHaveClass("h-8", "rounded-sm", "px-[10px]", "text-sm");
+    expect(optionRow).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm", "font-normal");
+    expect(accountOption).toHaveClass("sr-only");
+    expect(optionRow?.querySelector("[data-filter-check]")).toHaveClass("text-transparent");
+    expect(optionRow).not.toHaveClass("bg-primary/10", "font-medium", "text-primary");
     fireEvent.click(accountOption);
     expect(optionRow).toHaveClass("bg-primary/10", "font-medium", "text-primary");
+    expect(optionRow?.querySelector("[data-filter-check]")).toHaveClass("text-primary");
   });
 
   it("stacks time and amount filter controls without truncation", async () => {
@@ -199,21 +203,24 @@ describe("TransactionsPage editing", () => {
 
     fireEvent.click(screen.getByTitle("时间排序"));
     const timeMenu = await screen.findByRole("menu");
-    const timeGrid = timeMenu.querySelector(".grid");
-    expect(timeGrid).not.toHaveClass("grid-cols-2");
-    expect(screen.getByRole("button", { name: "升序" })).toHaveClass("w-full");
-    expect(screen.getByRole("button", { name: "降序" })).toHaveClass("w-full");
+    const timeOptions = timeMenu.querySelector("[data-filter-options]");
+    expect(timeOptions).toBeTruthy();
+    expect(timeOptions).not.toHaveClass("grid-cols-2");
+    expect(screen.getByRole("button", { name: "升序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
+    expect(screen.getByRole("button", { name: "降序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
 
     fireEvent.click(screen.getByTitle("时间排序"));
     fireEvent.click(screen.getByTitle("筛选或排序金额"));
     const amountMenu = await screen.findByRole("menu");
-    const amountGrids = [...amountMenu.querySelectorAll(".grid")];
-    expect(amountGrids).toHaveLength(2);
-    amountGrids.forEach((grid) => expect(grid).not.toHaveClass("grid-cols-2"));
-    expect(screen.getByRole("button", { name: "金额升序" })).toHaveClass("w-full");
-    expect(screen.getByRole("button", { name: "金额降序" })).toHaveClass("w-full");
-    expect(screen.getByPlaceholderText("最低")).toHaveClass("w-full");
-    expect(screen.getByPlaceholderText("最高")).toHaveClass("w-full");
+    const amountOptions = amountMenu.querySelector("[data-filter-options]");
+    expect(amountOptions).toBeTruthy();
+    expect(amountOptions).not.toHaveClass("grid-cols-2");
+    expect(screen.getByRole("button", { name: "金额升序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
+    expect(screen.getByRole("button", { name: "金额降序" })).toHaveClass("h-8", "rounded-sm", "px-[10px]", "py-1", "text-sm");
+    expect(screen.getByPlaceholderText("最低")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
+    expect(screen.getByPlaceholderText("最低")).not.toHaveClass("border-input");
+    expect(screen.getByPlaceholderText("最高")).toHaveClass("h-8", "rounded-md", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
+    expect(screen.getByPlaceholderText("最高")).not.toHaveClass("border-input");
   });
 
   it("keeps filter cancellation available while editing", async () => {

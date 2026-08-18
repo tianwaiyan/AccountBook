@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  Check,
   Copy,
   ChevronDown,
   Edit3,
@@ -361,6 +362,9 @@ function TransactionToolbar({ selectedMonth, onMonthChange, months, keyword, onK
 }
 
 type FilterOption = { value: string; label: string };
+const FILTER_OPTION_CLASS = "flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-[10px] py-1 text-left text-sm font-normal outline-none transition-colors hover:bg-primary/5 hover:text-primary focus-within:bg-primary/5 focus-within:text-primary disabled:cursor-not-allowed disabled:opacity-50";
+const FILTER_OPTION_SELECTED_CLASS = "bg-primary/10 font-medium text-primary";
+const FILTER_ACTION_CLASS = "flex h-8 w-full items-center rounded-sm px-[10px] py-1 text-left text-sm font-normal outline-none transition-colors hover:bg-primary/5 hover:text-primary focus-visible:bg-primary/5 focus-visible:text-primary disabled:cursor-not-allowed disabled:opacity-50";
 
 function MobileTransactionFilters({ referenceData, filters, setters, amountMin, amountMax, setAmountMin, setAmountMax, sort, setSort, onClearSort, amountError, onClear }: { referenceData: ReferenceData; filters: { accountIds: string[]; tradeTypes: TradeType[]; categoryIds: string[]; tagIds: string[]; statuses: Array<StatusCode | "blank"> }; setters: { setAccountIds: React.Dispatch<React.SetStateAction<string[]>>; setTradeTypes: React.Dispatch<React.SetStateAction<TradeType[]>>; setCategoryIds: React.Dispatch<React.SetStateAction<string[]>>; setTagIds: React.Dispatch<React.SetStateAction<string[]>>; setStatuses: React.Dispatch<React.SetStateAction<Array<StatusCode | "blank">>> }; amountMin: string; amountMax: string; setAmountMin: (value: string) => void; setAmountMax: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void; amountError: string | null; onClear: () => void }) {
   const [openFilter, setOpenFilter] = useState<FilterField | null>(null);
@@ -422,10 +426,6 @@ function TransactionFilterMenu({ variant = "header", field, label, title, active
       <Filter className="size-4" />{buttonLabel}
     </button>}
     {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-[70] mt-1 max-h-72 w-max min-w-[110px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border-2 border-border bg-background p-[6px] text-sm shadow-lg">
-      <div className="mb-1 flex h-8 items-center justify-between gap-2 rounded-sm px-[10px]">
-        <span className="font-medium">{label}</span>
-        <button type="button" aria-label="关闭筛选菜单" className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpenFilter(null)}><X className="size-4" /></button>
-      </div>
       {children}
     </div>}
   </div>;
@@ -435,8 +435,9 @@ function MultiFilterContent({ options, values, onToggle }: { options: FilterOpti
   return <div className="max-h-64 overflow-y-auto" data-filter-options>
     {options.map((option) => {
       const checked = values.includes(option.value);
-      return <label key={option.value} className={cn("flex h-8 cursor-pointer select-none items-center gap-2 rounded-sm px-[10px] text-sm outline-none transition-colors hover:bg-primary/5 hover:text-primary", checked && "bg-primary/10 font-medium text-primary")}>
-        <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="size-4 accent-primary" />
+      return <label key={option.value} className={cn(FILTER_OPTION_CLASS, checked && FILTER_OPTION_SELECTED_CLASS)}>
+        <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="sr-only" />
+        <span data-filter-check aria-hidden="true" className={cn("flex size-4 shrink-0 items-center justify-center text-transparent", checked && "text-primary")}><Check className="size-4" /></span>
         <span className="min-w-0 truncate">{option.label}</span>
       </label>;
     })}
@@ -444,31 +445,37 @@ function MultiFilterContent({ options, values, onToggle }: { options: FilterOpti
 }
 
 function SortFilterContent({ active, direction, onSort, onClearSort }: { active: boolean; direction: "asc" | "desc"; onSort: (direction: "asc" | "desc") => void; onClearSort: () => void }) {
-  return <div className="space-y-2">
-    <div className="grid gap-2">
-      <Button type="button" size="sm" className="w-full" variant={active && direction === "asc" ? "default" : "outline"} onClick={() => onSort("asc")}>升序</Button>
-      <Button type="button" size="sm" className="w-full" variant={active && direction === "desc" ? "default" : "outline"} onClick={() => onSort("desc")}>降序</Button>
-    </div>
-    <Button type="button" size="sm" variant="ghost" className="w-full" disabled={!active} onClick={onClearSort}>取消排序</Button>
+  return <div className="space-y-1" data-filter-options>
+    <FilterOptionButton selected={active && direction === "asc"} onClick={() => onSort("asc")}>升序</FilterOptionButton>
+    <FilterOptionButton selected={active && direction === "desc"} onClick={() => onSort("desc")}>降序</FilterOptionButton>
+    <FilterActionButton disabled={!active} onClick={onClearSort}>取消排序</FilterActionButton>
   </div>;
 }
 
 function AmountFilterContent({ minimum, maximum, setMinimum, setMaximum, sort, setSort, onClearSort, error }: { minimum: string; maximum: string; setMinimum: (value: string) => void; setMaximum: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void; error: string | null }) {
   const active = Boolean(minimum || maximum);
-  return <div className="w-60 space-y-2">
-    <div className="grid gap-2">
-      <Button type="button" size="sm" className="w-full" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
-      <Button type="button" size="sm" className="w-full" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
+  return <div className="w-60 space-y-1">
+    <div className="space-y-1" data-filter-options>
+      <FilterOptionButton selected={sort.by === "amount" && sort.direction === "asc"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</FilterOptionButton>
+      <FilterOptionButton selected={sort.by === "amount" && sort.direction === "desc"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</FilterOptionButton>
+      <FilterActionButton disabled={sort.by !== "amount"} onClick={onClearSort}>取消排序</FilterActionButton>
     </div>
-    <Button type="button" size="sm" variant="ghost" className="w-full" disabled={sort.by !== "amount"} onClick={onClearSort}>取消排序</Button>
-    <Label className="text-xs">金额范围</Label>
-    <div className="grid gap-2">
-      <Input className="w-full" aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
-      <Input className="w-full" aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+    <Label className="block px-[10px] py-1 text-xs text-muted-foreground">金额范围</Label>
+    <div className="space-y-1">
+      <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 focus-visible:border-input" aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
+      <Input className="h-8 rounded-md border-transparent bg-white px-2 py-1 focus-visible:border-input" aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
     </div>
     {error && <p className="text-xs text-amber-700" role="alert">{error}</p>}
-    {active && <Button type="button" className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}
+    {active && <FilterActionButton onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</FilterActionButton>}
   </div>;
+}
+
+function FilterOptionButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" aria-pressed={selected} className={cn(FILTER_OPTION_CLASS, selected && FILTER_OPTION_SELECTED_CLASS)} onClick={onClick}>{children}</button>;
+}
+
+function FilterActionButton({ disabled, onClick, children }: { disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" className={cn(FILTER_ACTION_CLASS, "gap-2", disabled && "text-muted-foreground")} disabled={disabled} onClick={onClick}>{children}</button>;
 }
 
 function updateFilterSelection<T extends string>(setter: React.Dispatch<React.SetStateAction<T[]>>, value: T, checked: boolean) {
