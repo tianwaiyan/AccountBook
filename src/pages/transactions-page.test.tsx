@@ -133,6 +133,28 @@ describe("TransactionsPage editing", () => {
     ]));
   });
 
+  it("uses rounded search-like borders for the five desktop text cells only", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+    await enterEditMode();
+
+    const desktopOccurredAtInput = screen.getAllByDisplayValue("2026-08-08 08:10:00")[0];
+    const desktopRemarkInput = screen.getAllByDisplayValue("早餐")[0];
+    const mobileOccurredAtInput = screen.getAllByDisplayValue("2026-08-08 08:10:00").at(-1);
+    const mobileRemarkInput = screen.getAllByDisplayValue("早餐").at(-1);
+    const desktopInputs = [
+      desktopOccurredAtInput,
+      screen.getByDisplayValue("18.50"),
+      screen.getByDisplayValue("社区早餐店"),
+      desktopRemarkInput,
+      screen.getByDisplayValue("现金"),
+    ];
+
+    desktopInputs.forEach((input) => expect(input).toHaveClass("rounded-md", "border-input", "bg-white", "px-2", "py-1", "focus-visible:ring-2", "focus-visible:ring-ring"));
+    expect(mobileOccurredAtInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
+    expect(mobileRemarkInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
+  });
+
   it("uses the global focus ring and blue selected state for draft selects", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
