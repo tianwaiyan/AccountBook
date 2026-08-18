@@ -22,6 +22,28 @@ AccountBook 以 Windows 本地优先、单用户、离线运行为产品边界�
 
 2026-08-18
 
+## Decision: Desktop-first UI acceptance boundary
+
+### Status
+
+Accepted
+
+### Decision
+
+AccountBook 默认以桌面布局作为 UI 功能验收目标，不默认承诺窄视口适配；只有用户明确提出响应式或窄视口需求时，才为该需求增加专项布局设计和验证。
+
+### Rationale
+
+当前应用的主要使用和验收场景是 Windows 桌面端；将窄视口排除在默认验收范围外，可以避免普通 UI 修改被额外的窄屏约束牵制，同时保持需求边界清晰。
+
+### Consequences
+
+后续普通 UI 任务只需验证桌面布局，不执行 `390px` 等窄视口专项检查，也不主动增加窄视口专用的宽度、换行或溢出适配。该决策不删除现有移动端页面或代码；用户明确提出窄视口需求时，任务范围可单独扩展。
+
+### Date
+
+2026-08-18
+
 ## Decision: Portable sibling-directory storage
 
 ### Status

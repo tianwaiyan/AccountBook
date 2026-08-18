@@ -2,57 +2,55 @@
 
 ## Objective
 
-建立 AccountBook 的长期 Codex 工作规范、项目状态、当前任务和架构决策持久化体系。
+统一桌面端修改流水与筛选下拉菜单的视觉样式，并将时间、金额筛选菜单内部控件改为不截断的纵向布局。
 
 ## User Requirements
 
-- 只修改规范和状态文档，不修改业务代码或产品行为。
-- 建立精简的 `AGENTS.md`、`.codex/STATE.md`、`.codex/TASK.md`、`.codex/DECISIONS.md`。
-- 在 `更新记录.md` 顶部记录本次规范体系变化。
-- 保护已有修改；本次不创建 Git commit。
+- 修改流水下拉面板最小宽度为 `110px`，保留 `2px` 边框、`6px` 面板内边距和 `10px` 选项左右内边距。
+- 筛选下拉菜单采用相同的面板和选项样式，最小宽度为 `110px`。
+- 时间和金额筛选菜单的所有内部控件纵向排列，避免文字和控件截断。
+- 默认只验收桌面布局，不进行窄视口或 `390px` 专项适配验收。
 
 ## Constraints
 
-- 允许修改：`AGENTS.md`、`.codex/` 三个状态文件、`更新记录.md`。
-- 禁止修改：`src/`、`src-tauri/`、`package.json`、`scripts/`、`README.md`、`.gitignore`、数据库、migration、备份、release 和 dist。
-- 不运行测试、构建、migration、backup、restore、portable build 或业务程序。
-- 工作文件优先放在 `D:\Codex\AccountBook`；未知文件不删除。
+- 不改变筛选、排序、金额校验、多选连续操作、菜单保持打开、Escape 和外部点击关闭行为。
+- 不修改数据库、Rust、迁移、备份、发布架构或业务接口。
+- 不修改或覆盖 `AGENTS.md` 中已有的未提交本地预览规则。
+- `STATE.md` 不修改；长期桌面验收边界写入 `DECISIONS.md`。
 
 ## Plan
 
-- [x] 复核 Git 状态和当前规范文件。
-- [x] 根据实际代码重写长期工作规则。
-- [x] 创建持久化项目状态、当前任务和架构决策文件。
-- [x] 追加更新记录并检查修改范围。
-
-## Completed
-
-- [x] 将数据安全、D 盘工作空间、危险 Git 操作和清理边界前置。
-- [x] 记录真实实现中的通用 SQL command、migration checksum 限制和 restore 校验边界。
-- [x] 明确四类状态/历史文档的职责，支持 context compaction 后恢复。
+- [x] 读取工作规范、状态文档、当前代码和既有修改。
+- [x] 调整编辑和筛选下拉面板样式。
+- [x] 将时间和金额筛选控件改为纵向排列。
+- [x] 更新测试、任务记录、长期决策和更新记录。
+- [x] 运行专项测试、全量测试、构建和桌面界面验收。
+- [x] 检查修改范围并创建本地 commit。
 
 ## Current Step
 
-规范体系已写入，最终 diff/status 检查已完成。
+代码、测试和持久化文档已完成，桌面布局验收通过，本地 commit 已完成。
 
 ## Blockers
 
-无。用户已确认仓库根目录数据库和 legacy backup 是开发/测试数据；本任务仍不执行数据库操作。
+无。
 
 ## Verification
 
-- 已执行只读 Git 状态检查。
-- 未运行测试、构建、migration、backup、restore 或业务程序，符合本任务约束。
-- 最终检查只针对允许修改的文档文件和 Git 工作树。
+- 交易页专项测试：22 项通过。
+- 前端全量测试：59 项通过、2 项跳过。
+- `npm.cmd run build`：通过。
+- 桌面浏览器验收：编辑下拉最小宽度 110px；时间菜单按钮单列；金额菜单按钮和输入框单列；未发现页面控制台错误。
+- 未执行窄视口专项检查，符合项目长期决策。
 
 ## Changed Files
 
-- `AGENTS.md`
-- `.codex/STATE.md`
+- `src/pages/transactions-page.tsx`
+- `src/pages/transactions-page.test.tsx`
 - `.codex/TASK.md`
 - `.codex/DECISIONS.md`
 - `更新记录.md`
 
 ## Next Step
 
-本任务完成，不创建 commit。后续新任务开始时覆盖本文件中的当前任务内容，并保留本次架构决策和项目状态。
+本任务完成；后续新任务开始时覆盖本文件中的当前任务内容，并保留本次桌面验收决策。

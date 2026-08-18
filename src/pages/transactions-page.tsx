@@ -421,8 +421,8 @@ function TransactionFilterMenu({ variant = "header", field, label, title, active
     </div> : <button type="button" aria-label={buttonLabel} aria-expanded={open} aria-haspopup="menu" className={cn("inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active && "border-primary/50 text-primary")} onClick={toggleOpen}>
       <Filter className="size-4" />{buttonLabel}
     </button>}
-    {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-[70] mt-1 max-h-72 w-56 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border bg-background p-1 text-sm shadow-lg">
-      <div className="mb-1 flex h-8 items-center justify-between gap-2 rounded-sm px-2">
+    {open && <div role="menu" aria-label={`${label}筛选`} data-filter-popover className="absolute left-0 top-full z-[70] mt-1 max-h-72 w-max min-w-[110px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border-2 border-border bg-background p-[6px] text-sm shadow-lg">
+      <div className="mb-1 flex h-8 items-center justify-between gap-2 rounded-sm px-[10px]">
         <span className="font-medium">{label}</span>
         <button type="button" aria-label="关闭筛选菜单" className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpenFilter(null)}><X className="size-4" /></button>
       </div>
@@ -435,7 +435,7 @@ function MultiFilterContent({ options, values, onToggle }: { options: FilterOpti
   return <div className="max-h-64 overflow-y-auto" data-filter-options>
     {options.map((option) => {
       const checked = values.includes(option.value);
-      return <label key={option.value} className={cn("flex h-8 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-sm outline-none transition-colors hover:bg-primary/5 hover:text-primary", checked && "bg-primary/10 font-medium text-primary")}>
+      return <label key={option.value} className={cn("flex h-8 cursor-pointer select-none items-center gap-2 rounded-sm px-[10px] text-sm outline-none transition-colors hover:bg-primary/5 hover:text-primary", checked && "bg-primary/10 font-medium text-primary")}>
         <input type="checkbox" checked={checked} onChange={(event) => onToggle(option.value, event.target.checked)} className="size-4 accent-primary" />
         <span className="min-w-0 truncate">{option.label}</span>
       </label>;
@@ -445,9 +445,9 @@ function MultiFilterContent({ options, values, onToggle }: { options: FilterOpti
 
 function SortFilterContent({ active, direction, onSort, onClearSort }: { active: boolean; direction: "asc" | "desc"; onSort: (direction: "asc" | "desc") => void; onClearSort: () => void }) {
   return <div className="space-y-2">
-    <div className="grid grid-cols-2 gap-2">
-      <Button type="button" size="sm" variant={active && direction === "asc" ? "default" : "outline"} onClick={() => onSort("asc")}>升序</Button>
-      <Button type="button" size="sm" variant={active && direction === "desc" ? "default" : "outline"} onClick={() => onSort("desc")}>降序</Button>
+    <div className="grid gap-2">
+      <Button type="button" size="sm" className="w-full" variant={active && direction === "asc" ? "default" : "outline"} onClick={() => onSort("asc")}>升序</Button>
+      <Button type="button" size="sm" className="w-full" variant={active && direction === "desc" ? "default" : "outline"} onClick={() => onSort("desc")}>降序</Button>
     </div>
     <Button type="button" size="sm" variant="ghost" className="w-full" disabled={!active} onClick={onClearSort}>取消排序</Button>
   </div>;
@@ -456,15 +456,15 @@ function SortFilterContent({ active, direction, onSort, onClearSort }: { active:
 function AmountFilterContent({ minimum, maximum, setMinimum, setMaximum, sort, setSort, onClearSort, error }: { minimum: string; maximum: string; setMinimum: (value: string) => void; setMaximum: (value: string) => void; sort: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }; setSort: (value: { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }) => void; onClearSort: () => void; error: string | null }) {
   const active = Boolean(minimum || maximum);
   return <div className="w-60 space-y-2">
-    <div className="grid grid-cols-2 gap-2">
-      <Button type="button" size="sm" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
-      <Button type="button" size="sm" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
+    <div className="grid gap-2">
+      <Button type="button" size="sm" className="w-full" variant={sort.by === "amount" && sort.direction === "asc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "asc" })}>金额升序</Button>
+      <Button type="button" size="sm" className="w-full" variant={sort.by === "amount" && sort.direction === "desc" ? "default" : "outline"} onClick={() => setSort({ by: "amount", direction: "desc" })}>金额降序</Button>
     </div>
     <Button type="button" size="sm" variant="ghost" className="w-full" disabled={sort.by !== "amount"} onClick={onClearSort}>取消排序</Button>
     <Label className="text-xs">金额范围</Label>
-    <div className="grid grid-cols-2 gap-2">
-      <Input aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
-      <Input aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
+    <div className="grid gap-2">
+      <Input className="w-full" aria-label="最低金额" value={minimum} onChange={(event) => setMinimum(event.target.value)} type="text" inputMode="decimal" placeholder="最低" />
+      <Input className="w-full" aria-label="最高金额" value={maximum} onChange={(event) => setMaximum(event.target.value)} type="text" inputMode="decimal" placeholder="最高" />
     </div>
     {error && <p className="text-xs text-amber-700" role="alert">{error}</p>}
     {active && <Button type="button" className="w-full" size="sm" variant="ghost" onClick={() => { setMinimum(""); setMaximum(""); }}><RotateCcw className="size-3" />清除金额筛选</Button>}
@@ -704,7 +704,7 @@ const DraftSelect = memo(function DraftSelect({ value, options, onChange, allowB
     <SelectTrigger className="h-8 w-full min-w-0 rounded-none border border-transparent bg-white px-1 text-left text-xs outline-none focus-visible:border-input focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-45">
       <SelectValue placeholder={allowBlank ? "未设置" : "请选择"} />
     </SelectTrigger>
-    <SelectContent className="w-max min-w-[90px] max-w-[calc(100vw-1rem)] border-2" viewportClassName="p-[6px]">
+    <SelectContent className="w-max min-w-[110px] max-w-[calc(100vw-1rem)] border-2" viewportClassName="p-[6px]">
       {(allowBlank || selectedValue === DRAFT_EMPTY_VALUE) && <SelectItem showIndicator={false} className="px-[10px]" value={DRAFT_EMPTY_VALUE}>未设置</SelectItem>}
       {options.map((option) => <SelectItem showIndicator={false} className="px-[10px]" key={option.value} value={option.value}>{option.label}</SelectItem>)}
     </SelectContent>
