@@ -26,9 +26,10 @@ export function SelectTrigger({
 
 export function SelectContent({
   className,
+  viewportClassName,
   children,
   ...props
-}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>) {
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & { viewportClassName?: string }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -37,7 +38,7 @@ export function SelectContent({
         sideOffset={4}
         {...props}
       >
-        <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+        <SelectPrimitive.Viewport className={cn("p-1", viewportClassName)}>{children}</SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   );

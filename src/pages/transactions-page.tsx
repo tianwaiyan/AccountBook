@@ -704,9 +704,9 @@ const DraftSelect = memo(function DraftSelect({ value, options, onChange, allowB
     <SelectTrigger className="h-8 w-full min-w-0 rounded-none border border-transparent bg-white px-1 text-left text-xs outline-none focus-visible:border-input focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-45">
       <SelectValue placeholder={allowBlank ? "未设置" : "请选择"} />
     </SelectTrigger>
-    <SelectContent className="w-max min-w-[min(11.25rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)]">
-      {(allowBlank || selectedValue === DRAFT_EMPTY_VALUE) && <SelectItem showIndicator={false} value={DRAFT_EMPTY_VALUE}>未设置</SelectItem>}
-      {options.map((option) => <SelectItem showIndicator={false} key={option.value} value={option.value}>{option.label}</SelectItem>)}
+    <SelectContent className="w-max min-w-[90px] max-w-[calc(100vw-1rem)] border-2" viewportClassName="p-[6px]">
+      {(allowBlank || selectedValue === DRAFT_EMPTY_VALUE) && <SelectItem showIndicator={false} className="px-[10px]" value={DRAFT_EMPTY_VALUE}>未设置</SelectItem>}
+      {options.map((option) => <SelectItem showIndicator={false} className="px-[10px]" key={option.value} value={option.value}>{option.label}</SelectItem>)}
     </SelectContent>
   </Select>;
 });

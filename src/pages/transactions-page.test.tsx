@@ -144,10 +144,11 @@ describe("TransactionsPage editing", () => {
 
     fireEvent.pointerDown(accountTrigger as HTMLElement, { button: 0, pointerType: "mouse" });
     const listbox = await screen.findByRole("listbox");
-    expect(listbox).toHaveClass("w-max", "min-w-[min(11.25rem,calc(100vw-1rem))]", "max-w-[calc(100vw-1rem)]");
+    expect(listbox).toHaveClass("w-max", "min-w-[90px]", "max-w-[calc(100vw-1rem)]", "border-2");
     expect(listbox).not.toHaveClass("min-w-[var(--radix-select-trigger-width)]");
+    expect(listbox.querySelector("[data-radix-select-viewport]")).toHaveClass("p-[6px]");
     const selectedOption = await screen.findByRole("option", { name: "现金" });
-    expect(selectedOption).toHaveClass("data-[state=checked]:bg-primary/10", "data-[state=checked]:text-primary");
+    expect(selectedOption).toHaveClass("px-[10px]", "data-[state=checked]:bg-primary/10", "data-[state=checked]:text-primary");
     expect(selectedOption.querySelector("svg")).toBeNull();
   });
 
