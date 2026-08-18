@@ -1,117 +1,85 @@
-# AccountBook 项目约定
+# AccountBook Codex 工作规范
 
-- 本文件是 `D:\Codex\AccountBook` 的长期开发规范。开始修改前先阅读本文件、`更新记录.md`、`README.md`、和相关源码。
-- 遇到难以决定或无法解决的问题时应及时向我询问，由我决定方向。
+本文件只记录长期有效的工作规则。开始任务前阅读本文件、`.codex/STATE.md`、`.codex/TASK.md`、相关源码和 `更新记录.md`；不要把聊天记录当作唯一项目记忆。
 
-## 1. 产品边界
+规则冲突优先级为：用户当前要求、`AGENTS.md`、`STATE.md`、`TASK.md`、`DECISIONS.md`、实际代码与配置、其他文档、README、历史聊天。若文档与代码行为冲突，以代码为事实并修正文档，不为了符合旧文档修改代码。
 
-- AccountBook 是 Windows 本地优先、单用户、免安装的记账应用。
-- 技术栈固定为 Tauri v2、React、TypeScript、Vite、Tailwind CSS、shadcn/ui 风格组件和 SQLite。
-- SQLite 是生产环境唯一持久化数据源；浏览器开发模式只使用内存演示数据。
-- 首版不实现登录、服务器、云同步、多人账本、预算或移动端安装包。
-- 保留 `SyncService` 接口，当前实现必须保持完全离线。
+## 1. 项目地图
 
-## 2. 架构与代码边界
+- AccountBook 是 Windows 本地优先、单用户、离线运行的记账应用。
+- 技术栈：Tauri v2、React、TypeScript、Vite、Tailwind、Vitest、Rust、`rusqlite`。
+- `src/`：React 页面、组件、业务 features、Repository、Service、类型、工具和前端测试。
+- `src-tauri/`：Tauri 启动逻辑、Rust commands、SQLite、备份、资源校验、存储和版本化 migration。
+- `scripts/`：构建和便携发布脚本；当前应用版本以 `package.json` 为主来源。
+- 浏览器 Vite 开发模式使用内存 Demo；Tauri 模式使用 Rust SQLite 适配器。
+- 生产前端使用 `accountbook://localhost` 从同级 `resources/web/` 读取外部资源。
 
-```text
-src/
-├─ components/       通用 UI、导航和反馈
-├─ pages/            页面组合
-├─ features/         业务功能模块
-├─ db/               SQLite 客户端和 Repository 实现
-├─ services/         业务服务、接口和编排
-├─ types/            领域类型
-├─ hooks/            React Hooks
-├─ utils/            金额、日期、搜索和统计工具
-└─ test/             测试初始化
+## 2. 绝对安全规则
 
-src-tauri/
-├─ capabilities/     Tauri 权限
-├─ migrations/       版本化 SQL 迁移
-└─ src/              Rust commands、数据库、备份、资源校验和启动逻辑
-```
+- 不删除、覆盖、上传或泄露真实用户数据库、备份、导出文件或账务内容。
+- 不用测试数据覆盖用户数据，不在日志、调试输出或异常信息中写入不必要的账务内容。
+- 不覆盖未提交的修改；发现既有修改时先保护并排除，不擅自回退。
+- 未经明确授权不得执行不可逆数据库操作、危险清理、强制 Git 操作或发布上传。
+- 禁止使用 `git reset --hard`、`git clean -fd`、`git restore .`、`git checkout -- .`、`git push --force`。
+- 不擅自改变本地优先、离线能力、数据位置、核心 schema、金额规则、迁移、备份恢复或发布架构。
+- 风险无法判断时停止写操作，先说明影响、回滚方案和需要的授权。
 
-- 页面和组件不得直接执行 SQL，数据库访问必须经过 Repository / Service。
-- 前端通过类型化 Tauri commands 调用 Rust SQLite 适配器，不得重新引入 SQL 插件或依赖 AppConfig 的数据库路径。
-- React 组件不得依赖 SQLite 文件路径或 Rust 实现细节。
-- 数据库结构变化只能新增版本化迁移；已发布迁移不得重写。
-- SQL 必须参数化；需要原子性的批量操作必须使用事务并在失败时回滚。
+## 3. DATA SAFETY
 
-## 3. 便携存储
+- 便携运行时以可执行文件所在目录为根；默认数据库是 `data/AccountBook.db`，WebView2 数据是 `data/webview/`，默认备份和恢复回滚在 `backups/`。
+- 恢复暂存文件是 `data/AccountBook.pending-restore.db`；未知数据文件、回滚文件和用户选择的外部备份一律按重要数据处理。
+- 当前仓库已确认的 `data/AccountBook.db` 与 `backups/legacy/` 是早期测试数据，可在明确的开发任务中使用；不得把它们与真实用户安装目录混淆。
+- 浏览器测试使用 Demo 数据；Rust 测试使用带 UUID 的临时目录。没有固定的专用测试数据库时，不得指向用户运行目录。
+- 数据库结构变化只能新增 migration；不得重写或删除已发布 migration，必须验证旧库迁移、兼容性、事务和失败回滚。
+- 当前 migration 未完整实现 checksum drift detection；当前 restore 校验主要是 SHA-256、字节数、SQLite `quick_check` 和 `schema_migrations` 表存在性，不得在文档中夸大为完整 schema 校验。
+- backup/restore 修改必须先保护原库并验证失败路径；不得用 `database_execute` 或 `write_text_file` 对真实路径做调试写入。
+- Git 禁止提交 `data/`、`backups/`、真实账单、备份、日志、缓存、`dist/`、`release/` 和构建输出。
 
-- 正式发布包是多文件绿色版；`AccountBook.exe` 只是启动入口，前端资源位于同级 `resources/web/`。
-- `resources/manifest.json` 保存资源清单、应用版本和逐文件 SHA-256；正式启动前必须校验版本、路径、文件存在性和哈希。
-- 正式运行模式使用 `accountbook://localhost` 自定义 URI Scheme 读取外部资源，不得把前端资源重新嵌入 EXE，也不得在正式模式回退到内嵌资源。
-- 开发模式继续使用 Vite `devUrl`，开发启动不要求存在发布包资源目录。
-- 数据库固定为应用程序同级目录下的 `data/AccountBook.db`。
-- WebView2 数据固定为 `data/webview/`；备份、恢复回滚和完整备份默认使用 `backups/`。
-- 首次启动必须自动创建 `data/`、`backups/` 和数据库。
-- 启动时必须检查应用目录可写性。只读介质、临时目录或权限不足时，要显示包含实际路径和处理建议的错误，不得静默改用其他目录。
-- 退出时清理 WebView2 只允许删除缓存、Cookie 和站点数据，不得删除数据库或备份。
+## 4. D 盘工作空间
 
+- 项目工作目录固定为 `D:\Codex\AccountBook`。
+- 项目文件、大型过程文件、分析输出和临时脚本优先写入 D 盘；不要把 C 盘作为默认项目工作目录。
+- 能配置临时目录时优先使用项目 `.codex/tmp/` 或 D 盘临时目录；系统工具必须使用 C 盘时，不破坏系统目录，记录限制并尽可能清理本次产物。
+- 清理前必须确认范围；未知文件、用户明确保留的文件、数据库和备份不得删除。
 
-## 4. 数据规则
+## 5. 架构边界
 
-- 流水和业务实体使用稳定 UUID。
-- 金额使用整数分保存：支出为负，收入和退款为正；UI 输入由 Service 统一设置符号。
-- 分类和标签允许为空；外部原分类保存在 `source_category`。
-- 流水使用软删除；账户、分类和标签优先停用，不破坏历史引用。
-- 手动录入允许内容相同的真实流水；只有外部导入使用版本化指纹自动去重。
-- 特殊业务身份依赖 `system_key`，不得依赖可重命名的显示名称。
+- 页面和组件不得直接执行 SQL；数据库访问经 Repository / Service 组织。
+- 当前前端通过通用 `database_select`、`database_execute` Tauri 接口访问 Rust SQLite 适配器，SQL 主要由 Repository 维护；不要声称当前所有 command 都是 schema 级强类型接口。
+- React 不依赖 SQLite 文件路径或 Rust 内部实现；路径由 Rust 根据可执行文件位置计算。
+- SQL 必须参数化；批量写入、导入和预设生成必须使用事务，失败回滚。
+- 稳定 UUID 用于流水和业务实体；金额以整数分保存，支出为负，收入和退款为正。
+- 流水软删除；账户、分类和标签优先停用；外部原分类保存为 `source_category`。
+- 手动录入允许相同真实流水；外部导入使用版本化 fingerprint 去重；特殊业务身份使用 `system_key`。
+- 当前导入范围为支付宝 CSV/XLSX、微信 CSV/XLSX 和标准 CSV；无法识别关键字段必须明确报错。
 
-## 5. 导入、导出与备份
+## 6. 产品决策边界
 
-- 当前支持支付宝 CSV/XLSX、微信 CSV/XLSX 和标准 CSV。
-- 无法识别关键字段时必须明确报错，不得猜测成普通收入或支出。
-- 自动过滤记录只保留在当前会话，不写入 SQLite。
-- 导入提交必须事务化；重复项计入 `skipped`，失败不得留下部分数据。
-- 完整备份和恢复必须校验 SHA-256、SQLite 完整性和应用 schema；恢复前先生成回滚备份。
+- 普通实现优先复用现有目录、Repository、Service、Tauri 和 SQLite 模式，采用最小必要修改。
+- 非必要不得重构数据库、状态管理、UI 框架、依赖、发布机制或无关模块。
+- 需求若影响金额、日期、ID、数据模型、导入去重、migration、backup/restore、数据位置或离线能力，先分析兼容性和风险。
+- 存在重大且无法从代码推断的产品选择时，向用户说明冲突，给出2~3个可选方案，等用户决定后再实施。
 
+## 7. 修改前调查
 
-## 6. UI 规则
+- 非 trivial 任务先运行 `git status --short`，再阅读相关代码、类型、调用方和测试。
+- 涉及 SQLite、导入、导出、备份、恢复、Tauri command 或发布时，额外检查 schema、migration、路径和相关脚本。
+- 先确定影响边界和验证范围，再修改；不要看到一个文件就大规模重写。
+- 发现与当前任务无关的问题只记录建议，不顺手扩大范围。
 
-- 中文优先，界面紧凑，适合快速录入、扫描和批量编辑。
-- 桌面使用侧边导航和数据表格，窄屏使用底部导航和卡片列表；最低验收宽度为 390px。
-- 使用 Lucide 图标并提供可访问名称；危险操作需要确认或可恢复机制。
-- 表格筛选、排序、列宽调整和长按拖动列顺序应互不冲突；编辑草稿不得因导航或筛选变化静默丢失。
-- 页面不得产生无意义的横向溢出；UI 修改后检查桌面和 390px 窄屏。
+## 8. 验证与发布
 
-## 7. 开发与验证
+- 前端修改按需运行 `npm.cmd test` 和 `npm.cmd run build`；本项目中 `test` 已执行 `vitest run`。
+- Rust/Tauri 修改按需在 `src-tauri/` 运行 `cargo fmt --check`、`cargo test`、`cargo check` 和 `cargo clippy --all-targets -- -D warnings`。
+- UI 修改检查桌面布局；存储、导入、备份和恢复修改补充对应的隔离数据验证。
+- `scripts/build-portable.ps1` 会重建 `release/staging/` 和版本 ZIP，可能清理已有发布产物；只在任务需要且用户授权时运行，不自动生成根目录 EXE。
+- 便携构建前须确认版本字段、外部资源、`bundle.active = false` 和 `accountbook://localhost` 与实际配置一致；GitHub Release 由用户手动执行。
 
-- PowerShell 中统一使用 `npm.cmd`，避免执行策略拦截 `npm.ps1`。
-- 运行 Tauri 开发或便携构建前，使用 Visual Studio 的 `Developer PowerShell for VS 2022` 或 `x64 Native Tools Command Prompt for VS 2022`，确保 x64 MSVC、Windows SDK、`link.exe`、`LIB` 和 `INCLUDE` 环境已加载；进入项目目录后运行 `npm.cmd run tauri:dev` 或 `npm.cmd run portable`。
-- 缺少工具时先全局检索；确认缺失后可自行安装，安装失败则暂停并报告。
-- 修改保持范围清晰，不回退或覆盖无关的用户文件。
-- 发布资源加载必须拒绝绝对路径、路径穿越和 resources/web 目录之外的文件；资源目录中允许存在 manifest 未列出的额外文件。
-- 前端修改至少运行：
+## 9. Git、文档与状态
 
-```powershell
-npm.cmd test -- --run
-npm.cmd run build
-```
-
-
-- Rust/Tauri 修改至少运行格式检查、测试、`cargo check` 和 `cargo clippy --all-targets -- -D warnings`。
-- UI 修改检查桌面端和 390px 窄屏；存储、导入和备份修改补充对应的路径、事务、恢复和真实样本验证。
-- 构建脚本不得关闭其他目录中的同名进程，也不得修改用户发布目录中的 `data/` 或 `backups/`。
-
-## 8. 构建与发布
-
-- 便携发布是手动操作，不要求随着每次项目修改或 Git commit 执行；标准命令为 `npm.cmd run portable`。
-- `package.json` 是版本主来源；发布脚本必须校验 `package.json`、package-lock 根包版本字段、Tauri 配置、Cargo 配置和 Cargo.lock 中 `account-book` 包的版本一致。
-- `scripts/build-portable.ps1` 无参数时先输出当前应用版本并询问本次发布版本号，直接回车沿用当前版本，然后校验版本一致性并构建；使用 `-Version MAJOR.MINOR.PATCH` 时先同步应用版本字段再构建。
-- 版本号严格采用不带预发布标识的 `MAJOR.MINOR.PATCH` 格式。版本同步只处理应用版本字段，不修改依赖包版本、数据库迁移版本、资源格式版本、备份格式版本或历史更新记录。
-- 缺少依赖、版本不一致或构建失败时必须显示具体原因；交互式执行默认暂停等待确认，构建失败不得自动重试。版本同步成功但后续构建失败时不自动回滚已同步字段。
-- `src-tauri/tauri.conf.json` 使用 `accountbook://localhost` 作为生产前端地址，并保持 `bundle.active = false`；不生成 MSI 或 NSIS。
-- `scripts/build-portable.ps1` 只生成 `release/staging/AccountBook/` 和 `release/AccountBook-v<version>-windows-x64.zip`，不得生成或更新仓库根目录 EXE。
-- 发布目录固定为 `AccountBook/`，包含 `AccountBook.exe`、`resources/`、空的 `data/`、空的 `backups/` 和 `README.md`。
-- GitHub Release 由用户手动执行。
-- 不得将、`release/`、`data/`、`backups/` 或其他用户数据加入 Git commit 或上传。
-
-## 9. 文档与 Git
-
-- 每次项目修改后，必须在根目录 `更新记录.md` 中总结实际改动和实现的内容，不记录最后的测试内容。最新记录放在文档最前面，历史记录不改写。
-- 每次项目修改完成后，必须检查 `git status`，确认没有误包含数据库、备份、真实账单、构建缓存或其他用户文件，然后在本地 Git 执行一次 commit。
-- Commit 应只包含本次有意修改的文件，提交信息为 type: description 格式，description 应能概括本次变更。type 为英文格式，description 为中文格式。
-- 如果存在无法安全处理的既有未提交改动，不得擅自覆盖或回退，应先报告。
-- 用户运行方式变化时更新 `README.md`。
+- 修改前后检查 `git status --short`、`git diff --stat` 和目标文件 diff。
+- 完成一个逻辑完整、经过验证的功能单元后，默认创建一次本地 commit。commit 只包含本任务明确修改的文件。
+- 探索性修改、实验性分支或用户明确要求不要提交时，不强制 commit。有外部未提交修改时不擅自 commit。
+- 项目修改后在 `更新记录.md` 顶部追加真实的长期变化，不记录测试过程；历史记录不重写。
+- `AGENTS.md` 只放永久规则；`.codex/STATE.md` 放当前项目状态；`.codex/TASK.md` 放当前任务；`.codex/DECISIONS.md` 放长期决策。
+- 长任务完成重要阶段后更新状态；发生 context compaction 前，确保状态文件能独立说明已完成内容、阻塞点和下一步。

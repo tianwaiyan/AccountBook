@@ -3,9 +3,7 @@ dist/
 release/
 AccountBook.exe
 data/*
-!data/.gitkeep
 backups/*
-!backups/.gitkeep
 .vite/
 coverage/
 src-tauri/target/
