@@ -150,7 +150,10 @@ describe("TransactionsPage editing", () => {
       screen.getByDisplayValue("现金"),
     ];
 
-    desktopInputs.forEach((input) => expect(input).toHaveClass("rounded-md", "border-input", "bg-white", "px-2", "py-1", "focus-visible:ring-2", "focus-visible:ring-ring"));
+    desktopInputs.forEach((input) => {
+      expect(input).toHaveClass("rounded-md", "border", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
+      expect(input).not.toHaveClass("border-input");
+    });
     expect(mobileOccurredAtInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
     expect(mobileRemarkInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
   });
