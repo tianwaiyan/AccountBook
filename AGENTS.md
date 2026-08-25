@@ -85,6 +85,7 @@
 
 - 修改前后检查 `git status --short`、`git diff --stat` 和目标文件 diff。
 - 完成一个逻辑完整、经过验证的功能单元后，默认创建一次本地 commit。commit 只包含本任务明确修改的文件。
+- commit提交信息为 type: description 格式，description 应能概括本次变更。type 为英文格式，description 为中文格式。
 - 探索性修改、实验性分支或用户明确要求不要提交时，不强制 commit。有外部未提交修改时不擅自 commit。
 - 项目修改后在 `更新记录.md` 顶部追加真实的长期变化，不记录测试过程；历史记录不重写。
 - `AGENTS.md` 只放永久规则；`.codex/STATE.md` 放当前项目状态；`.codex/TASK.md` 放当前任务；`.codex/DECISIONS.md` 放长期决策。
