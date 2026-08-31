@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import type { OptionRepository, SourceMappingRepository, TransactionRepository } from "@/services/contracts";
-import { ImportService, inferPlatformTradeType, normalizeCsvLineEndings } from "@/services/import-service";
-import type { Category } from "@/types/domain";
+import {
+  ImportService,
+  inferPlatformTradeType,
+  normalizeCsvLineEndings,
+  protectSpreadsheetText,
+} from "@/services/import-service";
+import type { Category, Transaction } from "@/types/domain";
 
 const foodCategory: Category = {
   id: "food",
@@ -28,6 +33,18 @@ function service() {
     list: vi.fn(async () => []),
     upsert: vi.fn(),
   } as unknown as SourceMappingRepository;
+  return new ImportService(transactionRepository, optionRepository, mappingRepository);
+}
+
+function exportService(transaction: Transaction) {
+  const transactionRepository = {
+    list: vi.fn(async () => [transaction]),
+  } as unknown as TransactionRepository;
+  const optionRepository = {
+    listCategories: vi.fn(async () => []),
+    listTags: vi.fn(async () => []),
+  } as unknown as OptionRepository;
+  const mappingRepository = {} as SourceMappingRepository;
   return new ImportService(transactionRepository, optionRepository, mappingRepository);
 }
 
@@ -63,6 +80,51 @@ describe("ImportService", () => {
       .toEqual({ tradeType: "refund", excludedNeutral: false });
     expect(inferPlatformTradeType("alipay", "不计收支", "餐饮美食", "小荷包付款", "交易成功"))
       .toEqual({ tradeType: "expense", excludedNeutral: true });
+  });
+
+  it("protects spreadsheet formula text while preserving ordinary text", () => {
+    expect(protectSpreadsheetText("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
+    expect(protectSpreadsheetText(" +SUM(A1:A2)")).toBe("' +SUM(A1:A2)");
+    expect(protectSpreadsheetText("\t@command")).toBe("'\t@command");
+    expect(protectSpreadsheetText("早餐")).toBe("早餐");
+    expect(protectSpreadsheetText("")).toBe("");
+  });
+
+  it("protects user text fields in canonical CSV without changing structured fields", async () => {
+    const transaction = {
+      id: "transaction-1",
+      bookId: "book-default",
+      occurredAt: "2026-08-08 08:00:00",
+      accountId: "account-1",
+      accountName: "=Account",
+      tradeType: "expense",
+      amountMinor: -1234,
+      categoryId: null,
+      categoryName: null,
+      categorySystemKey: null,
+      tagId: null,
+      tagName: null,
+      statusCode: null,
+      remark: "+SUM(1,1)",
+      counterparty: "@command",
+      paymentChannel: "-channel",
+      source: "manual",
+      sourceCategory: "=source",
+      importFingerprint: null,
+      fingerprintVersion: null,
+      createdAt: "2026-08-08 08:00:00",
+      updatedAt: "2026-08-08 08:00:00",
+    } satisfies Transaction;
+
+    const csv = await exportService(transaction).canonicalCsv("book-default");
+    expect(csv).toContain("2026-08-08 08:00:00");
+    expect(csv).toContain("expense,-12.34");
+    expect(csv).not.toContain("expense,'-12.34");
+    expect(csv).toContain("'=Account");
+    expect(csv).toContain("'+SUM(1,1)");
+    expect(csv).toContain("'@command");
+    expect(csv).toContain("'-channel");
+    expect(csv).toContain("'=source");
   });
 
   const wechatPath = realRecord("微信支付账单流水文件");

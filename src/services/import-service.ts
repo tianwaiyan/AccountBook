@@ -55,6 +55,17 @@ const CANONICAL_HEADERS = [
   "source_category",
 ] as const;
 
+const SPREADSHEET_FORMULA_PREFIX = /^[=+\-@]/;
+const SPREADSHEET_CONTROL_PREFIX = /^[\u0000-\u001f\u007f]/;
+
+export function protectSpreadsheetText(value: string): string {
+  if (!value) return value;
+  if (SPREADSHEET_CONTROL_PREFIX.test(value) || SPREADSHEET_FORMULA_PREFIX.test(value.trimStart())) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 function text(value: unknown): string {
   return String(value ?? "").trim().replace(/^\uFEFF/, "");
 }
@@ -311,16 +322,16 @@ export class ImportService {
     const tagById = new Map(tags.map((tag) => [tag.id, tag.name]));
     const rows = transactions.map((transaction) => ({
       occurred_at: transaction.occurredAt,
-      account: transaction.accountName,
+      account: protectSpreadsheetText(transaction.accountName),
       trade_type: transaction.tradeType,
       amount: (transaction.amountMinor / 100).toFixed(2),
-      category: transaction.categoryId ? categoryById.get(transaction.categoryId) ?? "" : "",
-      tag: transaction.tagId ? tagById.get(transaction.tagId) ?? "" : "",
-      status: transaction.statusCode ?? "",
-      remark: transaction.remark,
-      counterparty: transaction.counterparty,
-      payment_channel: transaction.paymentChannel,
-      source_category: transaction.sourceCategory ?? "",
+      category: protectSpreadsheetText(transaction.categoryId ? categoryById.get(transaction.categoryId) ?? "" : ""),
+      tag: protectSpreadsheetText(transaction.tagId ? tagById.get(transaction.tagId) ?? "" : ""),
+      status: protectSpreadsheetText(transaction.statusCode ?? ""),
+      remark: protectSpreadsheetText(transaction.remark),
+      counterparty: protectSpreadsheetText(transaction.counterparty),
+      payment_channel: protectSpreadsheetText(transaction.paymentChannel),
+      source_category: protectSpreadsheetText(transaction.sourceCategory ?? ""),
     }));
     return `\uFEFF${Papa.unparse(rows, { columns: [...CANONICAL_HEADERS] })}`;
   }
