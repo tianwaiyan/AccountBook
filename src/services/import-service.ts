@@ -130,16 +130,24 @@ export function inferPlatformTradeType(
   const alipayRefund = source === "alipay"
     && rawTradeType === "不计收支"
     && (rawCategory.includes("退款") || rawRemark.includes("退款") || status.includes("退款"));
-  const excludedNeutral = source === "alipay" && rawTradeType === "不计收支" && !alipayRefund;
+  const alipayNeutral = source === "alipay" && rawTradeType === "不计收支";
+  const excludedNeutral = alipayNeutral
+    && (rawCategory.includes("余额宝") || rawRemark.includes("余额宝"))
+    && (rawCategory.includes("收益") || rawRemark.includes("收益"));
   return {
     tradeType: normalizeTradeType(rawTradeType)
-      ?? (alipayRefund ? "refund" : excludedTransfer ? "income" : excludedNeutral ? "expense" : null),
+      ?? (alipayRefund ? "refund" : excludedTransfer ? "income" : alipayNeutral ? "expense" : null),
     excludedNeutral,
   };
 }
 
+function hasUtf8Bom(buffer: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(buffer);
+  return bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
 function decodeCsv(buffer: ArrayBuffer, source: ExternalSource): string {
-  const encoding = source === "alipay" ? "gb18030" : "utf-8";
+  const encoding = source === "alipay" && !hasUtf8Bom(buffer) ? "gb18030" : "utf-8";
   return normalizeCsvLineEndings(new TextDecoder(encoding).decode(buffer));
 }
 

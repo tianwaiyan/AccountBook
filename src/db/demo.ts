@@ -25,6 +25,7 @@ import { DEFAULT_BOOK_ID } from "@/types/domain";
 import type { MonthlyPreset, MonthlyPresetGenerationResult, MonthlyPresetInput } from "@/types/recurrence";
 import { recurrenceRuleService } from "@/services/recurrence-rule-service";
 import { matchesKeyword } from "@/utils/transaction-search";
+import { FINGERPRINT_VERSION } from "@/utils/fingerprint";
 
 const accounts: Account[] = [
   ["account-alipay", "支付宝"], ["account-wechat", "微信"], ["account-cash", "现金"],
@@ -135,7 +136,37 @@ export class DemoTransactionRepository implements TransactionRepository {
   async update(id: string, input: TransactionInput): Promise<void> { transactions = transactions.map((row) => row.id === id ? fromInput(id, input, row) : row); }
   async bulkUpdate(entries: Array<{ id: string; input: TransactionInput }>): Promise<void> { for (const entry of entries) await this.update(entry.id, entry.input); }
   async softDelete(ids: string[]): Promise<number> { const before = transactions.length; transactions = transactions.filter((row) => !ids.includes(row.id)); return before - transactions.length; }
-  async commitImport(_bookId: string, candidates: ImportCandidate[]): Promise<ImportCommitResult> { const unique = candidates.filter((candidate) => !transactions.some((row) => row.importFingerprint === candidate.fingerprint)); for (const candidate of unique) transactions.push(fromInput(crypto.randomUUID(), { occurredAt: candidate.occurredAt, accountId: accounts.find((item) => item.name === candidate.accountName)?.id ?? accounts[0].id, tradeType: candidate.tradeType, amountMinor: candidate.amountMinor, categoryId: candidate.categoryId, tagId: candidate.tagId, statusCode: candidate.statusCode, remark: candidate.remark, counterparty: candidate.counterparty, paymentChannel: candidate.paymentChannel, source: candidate.source, sourceCategory: candidate.sourceCategory, importFingerprint: candidate.fingerprint })); return { inserted: unique.length, skipped: candidates.length - unique.length }; }
+  async commitImport(bookId: string, candidates: ImportCandidate[]): Promise<ImportCommitResult> {
+    let inserted = 0;
+    for (const candidate of candidates) {
+      const accountId = accounts.find((item) => item.bookId === bookId && item.name === candidate.accountName)?.id ?? accounts[0].id;
+      const duplicate = transactions.some((row) => row.bookId === bookId
+        && row.occurredAt === candidate.occurredAt
+        && row.accountId === accountId
+        && row.amountMinor === candidate.amountMinor
+        && row.paymentChannel === candidate.paymentChannel
+        && row.counterparty === candidate.counterparty);
+      if (duplicate) continue;
+      transactions.push(fromInput(crypto.randomUUID(), {
+        occurredAt: candidate.occurredAt,
+        accountId,
+        tradeType: candidate.tradeType,
+        amountMinor: candidate.amountMinor,
+        categoryId: candidate.categoryId,
+        tagId: candidate.tagId,
+        statusCode: candidate.statusCode,
+        remark: candidate.remark,
+        counterparty: candidate.counterparty,
+        paymentChannel: candidate.paymentChannel,
+        source: candidate.source,
+        sourceCategory: candidate.sourceCategory,
+        importFingerprint: candidate.fingerprint,
+        fingerprintVersion: FINGERPRINT_VERSION,
+      }));
+      inserted += 1;
+    }
+    return { inserted, skipped: candidates.length - inserted };
+  }
 }
 
 export class DemoOptionRepository implements OptionRepository {

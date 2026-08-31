@@ -9,6 +9,7 @@ import {
   protectSpreadsheetText,
 } from "@/services/import-service";
 import type { Category, Transaction } from "@/types/domain";
+import { createImportFingerprint, FINGERPRINT_VERSION } from "@/utils/fingerprint";
 
 const foodCategory: Category = {
   id: "food",
@@ -59,6 +60,10 @@ function localFile(path: string, type: string): File {
   return new File([new Uint8Array(readFileSync(path))], basename(path), { type });
 }
 
+function alipayFile(csv: string): File {
+  return new File([new TextEncoder().encode(`\uFEFF${csv}`)], "alipay.csv", { type: "text/csv" });
+}
+
 describe("ImportService", () => {
   it("parses WeChat CSV and filters transfers to 零钱通", async () => {
     const csv = [
@@ -79,7 +84,77 @@ describe("ImportService", () => {
     expect(inferPlatformTradeType("alipay", "不计收支", "退款", "退款-早餐", "退款成功"))
       .toEqual({ tradeType: "refund", excludedNeutral: false });
     expect(inferPlatformTradeType("alipay", "不计收支", "餐饮美食", "小荷包付款", "交易成功"))
+      .toEqual({ tradeType: "expense", excludedNeutral: false });
+    expect(inferPlatformTradeType("alipay", "不计收支", "余额宝", "余额宝收益", "交易成功"))
       .toEqual({ tradeType: "expense", excludedNeutral: true });
+    expect(inferPlatformTradeType("wechat", "不计收支", "普通转账", "余额调整", "交易成功"))
+      .toEqual({ tradeType: null, excludedNeutral: false });
+  });
+
+  it("keeps ordinary Alipay neutral rows as candidates and filters only Yu'ebao income", async () => {
+    const csv = [
+      "交易时间,交易分类,交易对方,商品说明,收/支,金额,收/付款方式,交易状态",
+      "2026-08-08 08:00:00,余额调整,账户,银行卡余额调整,不计收支,10.00,余额,交易成功",
+      "2026-08-08 09:00:00,余额宝,余额宝,余额宝收益发放,不计收支,0.10,余额宝,交易成功",
+    ].join("\n");
+    const preview = await service().preview(alipayFile(csv), "alipay", "book-default");
+
+    expect(preview.candidates).toHaveLength(1);
+    expect(preview.candidates[0].remark).toBe("银行卡余额调整");
+    expect(preview.candidates[0].tradeType).toBe("expense");
+    expect(preview.excluded).toHaveLength(1);
+    expect(preview.excluded[0].excludedReason).toBe("余额宝收益发放");
+  });
+
+  it("preserves explicit platform exclusion rules", async () => {
+    const csv = [
+      "交易时间,交易分类,交易对方,商品说明,收/支,金额,收/付款方式,交易状态",
+      "2026-08-08 08:00:00,消费,花呗,花呗还款,支出,10.00,花呗,交易成功",
+      "2026-08-08 09:00:00,转账,银行卡,银行卡定时转入,支出,20.00,银行卡,交易成功",
+      "2026-08-08 10:00:00,消费,商户,已关闭订单,支出,30.00,支付宝,交易关闭",
+    ].join("\n");
+    const preview = await service().preview(alipayFile(csv), "alipay", "book-default");
+
+    expect(preview.candidates).toHaveLength(0);
+    expect(preview.excluded.map((row) => row.excludedReason)).toEqual([
+      "花呗自动还款",
+      "银行卡定时转入",
+      "交易状态：交易关闭",
+    ]);
+  });
+
+  it("does not add platform exclusions to standard CSV", async () => {
+    const csv = [
+      "occurred_at,account,trade_type,amount,category,tag,status,remark,counterparty,payment_channel,source_category",
+      "2026-08-08 08:00:00,支付宝,expense,-1.00,余额调整,,,,账户,余额,余额调整",
+    ].join("\n");
+    const preview = await service().preview(new File([csv], "canonical.csv", { type: "text/csv" }), "canonical_csv", "book-default");
+
+    expect(preview.candidates).toHaveLength(1);
+    expect(preview.excluded).toHaveLength(0);
+  });
+
+  it("builds v2 fingerprints from business fields and ignores remarks", async () => {
+    const base = {
+      accountName: "支付宝",
+      occurredAt: "2026-08-08 08:00:00",
+      amountMinor: -100,
+      paymentChannel: "余额",
+      counterparty: "早餐店",
+    };
+    const editedRemark = { ...base, remark: "修改后的备注" };
+
+    expect(FINGERPRINT_VERSION).toBe(2);
+    expect(await createImportFingerprint(base)).toBe(await createImportFingerprint(editedRemark));
+    for (const changed of [
+      { ...base, occurredAt: "2026-08-08 08:00:01" },
+      { ...base, accountName: "微信" },
+      { ...base, amountMinor: -200 },
+      { ...base, paymentChannel: "银行卡" },
+      { ...base, counterparty: "午餐店" },
+    ]) {
+      expect(await createImportFingerprint(changed)).not.toBe(await createImportFingerprint(base));
+    }
   });
 
   it("protects spreadsheet formula text while preserving ordinary text", () => {

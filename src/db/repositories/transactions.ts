@@ -8,6 +8,7 @@ import type {
   TransactionInput,
 } from "@/types/domain";
 import { buildTransactionSql } from "@/db/repositories/transaction-query";
+import { FINGERPRINT_VERSION } from "@/utils/fingerprint";
 
 const BASE_SELECT = `
   SELECT
@@ -200,8 +201,19 @@ export class SqliteTransactionRepository implements TransactionRepository {
         const duplicate = await database.select<Array<{ count: number }>>(
           `SELECT COUNT(*) AS count FROM transactions
            WHERE book_id = ? AND deleted_at IS NULL
-             AND import_fingerprint = ?`,
-          [bookId, candidate.fingerprint],
+             AND occurred_at = ?
+             AND account_id = ?
+             AND amount_minor = ?
+             AND payment_channel = ?
+             AND counterparty = ?`,
+          [
+            bookId,
+            candidate.occurredAt,
+            accountId,
+            candidate.amountMinor,
+            candidate.paymentChannel,
+            candidate.counterparty,
+          ],
         );
         if ((duplicate[0]?.count ?? 0) > 0) continue;
         const result = await database.execute(
@@ -210,7 +222,7 @@ export class SqliteTransactionRepository implements TransactionRepository {
             category_id, tag_id, status_code, remark, counterparty, payment_channel,
             source, source_category, import_fingerprint, fingerprint_version,
             created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [
             crypto.randomUUID(),
             bookId,
@@ -227,6 +239,7 @@ export class SqliteTransactionRepository implements TransactionRepository {
             candidate.source,
             candidate.sourceCategory,
             candidate.fingerprint,
+            FINGERPRINT_VERSION,
           ],
         );
         inserted += result.rowsAffected;
