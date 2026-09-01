@@ -22,6 +22,28 @@ AccountBook 以 Windows 本地优先、单用户、离线运行为产品边界�
 
 2026-08-18
 
+## Decision: Signed overview contribution for refunds
+
+### Status
+
+Accepted
+
+### Decision
+
+退款继续以正数分保存，并在流水列表、导入预览和 CSV 导出中保持正数语义。普通退款在概览的支出、结余、趋势、分类、标签和年度汇总中按负贡献计算；支出型特殊分类退款只反向冲减对应特殊指标，不进入个人收支。概览饼图只显示正净额，负净额通过可打开明细的列表显示。
+
+### Rationale
+
+退款是对原支出的冲销，概览需要反映真实净额；底层正数语义则保持现有存储、导入和导出兼容性。将负净额从饼图分离可以避免图表对负值的错误表达，同时保留用户查看明细的入口。
+
+### Consequences
+
+SQLite 与 Demo 聚合必须保持相同的退款符号和特殊分类边界；趋势轴与年度展示需要支持负值；待报销退款仍以正数出现在待报销清单中，已报销退款不进入该清单。
+
+### Date
+
+2026-09-01
+
 ## Decision: Desktop-first UI acceptance boundary
 
 ### Status

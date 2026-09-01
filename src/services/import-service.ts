@@ -12,7 +12,7 @@ import type {
   TradeType,
 } from "@/types/domain";
 import { createImportFingerprint, importBusinessKey } from "@/utils/fingerprint";
-import { normalizeDateTime } from "@/utils/date";
+import { normalizeDateTime, normalizeExcelDateTime } from "@/utils/date";
 import { signedMinor } from "@/utils/money";
 
 type ExternalSource = "alipay" | "wechat" | "canonical_csv";
@@ -188,6 +188,7 @@ async function buildCandidate(
     counterparty?: unknown;
     paymentChannel?: unknown;
     sourceStatus?: unknown;
+    isExcelDate?: boolean;
   },
 ): Promise<ImportCandidate> {
   const rawCategory = text(input.sourceCategory);
@@ -201,7 +202,7 @@ async function buildCandidate(
   const candidateBase = {
     rowId: crypto.randomUUID(),
     source,
-    occurredAt: normalizeDateTime(input.occurredAt),
+    occurredAt: input.isExcelDate ? normalizeExcelDateTime(input.occurredAt) : normalizeDateTime(input.occurredAt),
     accountName: text(input.accountName) || "未命名账户",
     tradeType,
     amountMinor: signedMinor(cleanAmount(input.amount), tradeType),
@@ -241,6 +242,7 @@ async function parsePlatform(buffer: ArrayBuffer, source: "alipay" | "wechat", i
         counterparty: row[columns.counterparty],
         paymentChannel: row[columns.payment],
         sourceStatus: row["交易状态"],
+        isExcelDate: isExcel,
       }));
     } catch (error) {
       if (text(row[columns.time]) || text(row[columns.amount])) throw error;

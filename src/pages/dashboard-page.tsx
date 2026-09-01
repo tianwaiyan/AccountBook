@@ -32,7 +32,7 @@ import { DEFAULT_BOOK_ID, statusLabels, tradeTypeLabels, type TradeType } from "
 import { currentYearMonth, monthLabel } from "@/utils/date";
 import { formatMoney, minorToYuan } from "@/utils/money";
 import { cn } from "@/utils/cn";
-import { clampTrendVisibleMonths, getTrendAxisTicks, getTrendDomainMaximum, getTrendVisibleRange, toTrendPoints } from "@/utils/trend";
+import { clampTrendVisibleMonths, getTrendAxisTicks, getTrendDomainMaximum, getTrendDomainMinimum, getTrendVisibleRange, toTrendPoints } from "@/utils/trend";
 
 const COLORS = ["#2563eb", "#0f766e", "#dc2626", "#ca8a04", "#7c3aed", "#0891b2", "#db2777", "#4d7c0f"];
 const PERSONAL_EXCLUDED_SYSTEM_KEYS = new Set(["public_expense", "reimbursement", "pass_through_expense", "pass_through_income"]);
@@ -140,7 +140,7 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
       <PeriodToolbar months={referenceData.months} selectedMonth={selectedMonth} onChange={setSelectedMonth} />
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard label="个人收入" value={formatMoney(data.summary.incomeMinor)} icon={ArrowUpRight} tone="income" />
-        <MetricCard label="个人支出" value={formatMoney(data.summary.expenseMinor)} icon={ArrowDownRight} tone="expense" />
+        <MetricCard label="个人支出" value={formatMoney(data.summary.expenseMinor, { sign: true })} icon={ArrowDownRight} tone="expense" />
         <MetricCard label="本月结余" value={formatMoney(data.summary.balanceMinor, { sign: true })} icon={CircleDollarSign} tone={data.summary.balanceMinor >= 0 ? "primary" : "expense"} />
       </div>
 
@@ -198,7 +198,7 @@ function MetricCard({ label, value, icon: Icon, tone }: { label: string; value: 
 }
 
 function SmallMetric({ label, value, warning }: { label: string; value: number; warning?: boolean }) {
-  return <div className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3"><span className="text-sm text-muted-foreground">{label}</span><span className={cn("text-sm font-semibold", warning && value > 0 && "text-rose-600")}>{formatMoney(value)}</span></div>;
+  return <div className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3"><span className="text-sm text-muted-foreground">{label}</span><span className={cn("text-sm font-semibold", warning && value > 0 && "text-rose-600")}>{formatMoney(value, { sign: true })}</span></div>;
 }
 
 function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -217,6 +217,7 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
   const contentWidth = Math.max(viewportWidth, viewportWidth > 0 ? viewportWidth * points.length / visibleMonths : points.length * 80);
   const range = getTrendVisibleRange(points.length, scrollLeft, viewportWidth || 1, contentWidth);
   const domainMaximum = getTrendDomainMaximum(points, range);
+  const domainMinimum = getTrendDomainMinimum(points, range);
 
   useEffect(() => {
     setVisibleMonths((current) => clampTrendVisibleMonths(points.length, current));
@@ -271,7 +272,7 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
           <div style={{ height: plotHeight }}>
             <ResponsiveContainer width="100%" height={plotHeight}>
               <LineChart data={points} margin={{ left: 0, right: 4, top: 8, bottom: 0 }}>
-                <YAxis domain={[0, domainMaximum]} ticks={getTrendAxisTicks(domainMaximum)} interval={0} tick={{ fontSize: 10 }} tickFormatter={formatTrendAxisValue} width={68} allowDataOverflow />
+                <YAxis domain={[domainMinimum, domainMaximum]} ticks={getTrendAxisTicks(domainMaximum, 5, domainMinimum)} interval={0} tick={{ fontSize: 10 }} tickFormatter={formatTrendAxisValue} width={68} allowDataOverflow />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -284,8 +285,8 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
                 <LineChart data={points} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="month" hide />
-                  <YAxis domain={[0, domainMaximum]} hide allowDataOverflow />
-                  <Tooltip formatter={(value) => formatMoney(Number(value) * 100)} labelFormatter={(value) => `月份：${value}`} />
+                  <YAxis domain={[domainMinimum, domainMaximum]} hide allowDataOverflow />
+                  <Tooltip formatter={(value) => formatMoney(Number(value) * 100, { sign: true })} labelFormatter={(value) => `月份：${value}`} />
                   <Line type="linear" dataKey="income" name="收入" stroke="#059669" strokeWidth={2} dot={false} isAnimationActive={false} />
                   <Line type="linear" dataKey="expense" name="支出" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
@@ -316,18 +317,23 @@ function formatTrendAxisValue(value: number) {
 }
 
 function PiePanel({ title, data, onSelect }: { title: string; data: ChartDatum[]; onSelect: (name: string) => void }) {
-  const chartData = useMemo(() => data.map((item) => ({ ...item, yuan: minorToYuan(item.value) })), [data]);
+  const positiveData = useMemo(() => data.filter((item) => item.value > 0), [data]);
+  const negativeData = useMemo(() => data.filter((item) => item.value < 0), [data]);
+  const chartData = useMemo(() => positiveData.map((item) => ({ ...item, yuan: minorToYuan(item.value) })), [positiveData]);
   const activeShape = (props: PieSectorDataItem) => {
     const outerRadius = Number(props.outerRadius ?? 0);
     return <Sector {...props} outerRadius={outerRadius + 8} stroke="#ffffff" strokeWidth={1.5} />;
   };
-  return <ChartPanel title={title}>{data.length ? <ResponsiveContainer width="100%" height={280}><PieChart><Pie data={chartData} dataKey="yuan" nameKey="name" innerRadius={42} outerRadius={102} paddingAngle={0.4} labelLine={false} activeShape={activeShape} onClick={(entry) => { const name = (entry as { name?: unknown } | undefined)?.name; if (typeof name === "string") onSelect(name); }} label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
+  return <ChartPanel title={title}>
+    {positiveData.length ? <ResponsiveContainer width="100%" height={280}><PieChart><Pie data={chartData} dataKey="yuan" nameKey="name" innerRadius={42} outerRadius={102} paddingAngle={0.4} labelLine={false} activeShape={activeShape} onClick={(entry) => { const name = (entry as { name?: unknown } | undefined)?.name; if (typeof name === "string") onSelect(name); }} label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
     if (Number(percent) < 0.035) return null;
     const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.57;
     const x = Number(cx) + radius * Math.cos(-Number(midAngle) * Math.PI / 180);
     const y = Number(cy) + radius * Math.sin(-Number(midAngle) * Math.PI / 180);
     return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={600} style={{ pointerEvents: "none" }}><tspan x={x} dy="-0.45em">{String(name)}</tspan><tspan x={x} dy="1.15em">{(Number(percent) * 100).toFixed(1)}%</tspan></text>;
-  }}>{data.map((item, index) => <Cell key={item.name} data-pie-slice={item.name} className="cursor-pointer" fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={0.5} />)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value) * 100)} /></PieChart></ResponsiveContainer> : <EmptyChart />}</ChartPanel>;
+  }}>{positiveData.map((item, index) => <Cell key={item.name} data-pie-slice={item.name} className="cursor-pointer" fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={0.5} />)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value) * 100)} /></PieChart></ResponsiveContainer> : <EmptyChart />}
+    {negativeData.length > 0 && <div className="border-t border-border pt-3" data-testid="negative-net-list"><p className="mb-2 text-xs font-medium text-muted-foreground">负数净额</p><div className="space-y-1">{negativeData.map((item) => <button key={item.name} type="button" data-negative-net-item={item.name} aria-label={`查看${item.name}明细`} className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelect(item.name)}><span className="min-w-0 truncate">{item.name}</span><span className="shrink-0 font-medium tabular-nums text-blue-600">{formatMoney(item.value, { sign: true })}</span></button>)}</div></div>}
+  </ChartPanel>;
 }
 
 function PieDetailPanel({ selection, rows, loading, error, onClose }: { selection: PieSelection; rows: Transaction[]; loading: boolean; error: string | null; onClose: () => void }) {
@@ -337,7 +343,7 @@ function PieDetailPanel({ selection, rows, loading, error, onClose }: { selectio
       <Button size="icon" variant="ghost" title="关闭明细" aria-label="关闭扇形明细" onClick={onClose}><X className="size-4" /></Button>
     </CardHeader>
     <CardContent>
-      {loading ? <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">正在读取明细</div> : error ? <p className="py-8 text-center text-sm text-destructive" role="alert">{error}</p> : rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="px-3 py-2 text-left">时间</th><th className="px-3 py-2 text-left">账户</th><th className="px-3 py-2 text-left">收支</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-left">备注</th><th className="px-3 py-2 text-left">交易对方</th><th className="px-3 py-2 text-left">支付方式</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-border last:border-0"><td className="px-3 py-2 tabular-nums">{row.occurredAt}</td><td className="px-3 py-2">{row.accountName}</td><td className="px-3 py-2">{tradeTypeLabels[row.tradeType]}</td><td className={cn("px-3 py-2 text-right font-medium tabular-nums", row.tradeType === "income" ? "text-emerald-600" : row.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{row.tradeType === "expense" ? "-" : "+"}{formatMoney(row.amountMinor)}</td><td className="max-w-60 truncate px-3 py-2" title={row.remark}>{row.remark || "-"}</td><td className="max-w-44 truncate px-3 py-2" title={row.counterparty}>{row.counterparty || "-"}</td><td className="max-w-36 truncate px-3 py-2" title={row.paymentChannel}>{row.paymentChannel || "-"}</td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">该月份暂无匹配项目</p>}
+      {loading ? <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">正在读取明细</div> : error ? <p className="py-8 text-center text-sm text-destructive" role="alert">{error}</p> : rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="px-3 py-2 text-left">时间</th><th className="px-3 py-2 text-left">账户</th><th className="px-3 py-2 text-left">收支</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-left">备注</th><th className="px-3 py-2 text-left">交易对方</th><th className="px-3 py-2 text-left">支付方式</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-border last:border-0"><td className="px-3 py-2 tabular-nums">{row.occurredAt}</td><td className="px-3 py-2">{row.accountName}</td><td className="px-3 py-2">{tradeTypeLabels[row.tradeType]}</td><td className={cn("px-3 py-2 text-right font-medium tabular-nums", row.tradeType === "income" ? "text-emerald-600" : row.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{formatMoney(overviewTransactionAmount(row), { sign: true })}</td><td className="max-w-60 truncate px-3 py-2" title={row.remark}>{row.remark || "-"}</td><td className="max-w-44 truncate px-3 py-2" title={row.counterparty}>{row.counterparty || "-"}</td><td className="max-w-36 truncate px-3 py-2" title={row.paymentChannel}>{row.paymentChannel || "-"}</td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">该月份暂无匹配项目</p>}
     </CardContent>
   </Card>;
 }
@@ -362,9 +368,13 @@ function YearlyTable({ data, year }: { data: YearlyCategoryDatum[]; year: string
     }
     return [...byCategory.values()];
   }, [data]);
-  const maximum = Math.max(1, ...rows.flatMap((row) => row.values));
+  const maximum = Math.max(1, ...rows.flatMap((row) => row.values.map((value) => Math.abs(value))));
   const totals = rows.reduce((result, row) => result.map((value, index) => value + row.values[index]), Array(12).fill(0));
-  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? <>{rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value ? `rgba(220, 38, 38, ${0.08 + (value / maximum) * 0.32})` : undefined }}>{value ? formatMoney(value) : "-"}</td>)}</tr>)}<tr className="border-t-2 border-border font-bold"><th className="sticky left-0 bg-card px-3 py-2 text-left font-bold">总计</th>{totals.map((value, index) => <td key={index} className="px-2 py-2 text-right font-bold tabular-nums">{value ? formatMoney(value) : "-"}</td>)}</tr></> : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
+  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? <>{rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value > 0 ? `rgba(220, 38, 38, ${0.08 + (Math.abs(value) / maximum) * 0.32})` : value < 0 ? "rgba(37, 99, 235, 0.08)" : undefined }}>{value ? formatMoney(value, { sign: true }) : "-"}</td>)}</tr>)}<tr className="border-t-2 border-border font-bold"><th className="sticky left-0 bg-card px-3 py-2 text-left font-bold">总计</th>{totals.map((value, index) => <td key={index} className="px-2 py-2 text-right font-bold tabular-nums">{value ? formatMoney(value, { sign: true }) : "-"}</td>)}</tr></> : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
+}
+
+function overviewTransactionAmount(row: Transaction): number {
+  return row.tradeType === "income" ? Math.abs(row.amountMinor) : -Math.abs(row.amountMinor);
 }
 
 function TrackingPanel({ title, rows, empty }: { title: string; rows: TrackingRecord[]; empty: string }) {

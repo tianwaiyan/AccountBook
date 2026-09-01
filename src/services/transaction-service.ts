@@ -8,11 +8,11 @@ import type {
 } from "@/types/domain";
 import { isValidDateTime } from "@/utils/date";
 
-const SPECIAL_RULES: Record<string, { tradeType: TransactionInput["tradeType"]; statuses: StatusCode[]; defaultStatus: StatusCode }> = {
-  public_expense: { tradeType: "expense", statuses: ["pending_reimbursement", "settled"], defaultStatus: "pending_reimbursement" },
-  reimbursement: { tradeType: "income", statuses: ["settled"], defaultStatus: "settled" },
-  pass_through_income: { tradeType: "income", statuses: ["pending_transfer", "transferred"], defaultStatus: "pending_transfer" },
-  pass_through_expense: { tradeType: "expense", statuses: ["transferred"], defaultStatus: "transferred" },
+const SPECIAL_RULES: Record<string, { tradeTypes: TransactionInput["tradeType"][]; statuses: StatusCode[]; defaultStatus: StatusCode }> = {
+  public_expense: { tradeTypes: ["expense", "refund"], statuses: ["pending_reimbursement", "settled"], defaultStatus: "pending_reimbursement" },
+  reimbursement: { tradeTypes: ["income"], statuses: ["settled"], defaultStatus: "settled" },
+  pass_through_income: { tradeTypes: ["income"], statuses: ["pending_transfer", "transferred"], defaultStatus: "pending_transfer" },
+  pass_through_expense: { tradeTypes: ["expense", "refund"], statuses: ["transferred"], defaultStatus: "transferred" },
 };
 
 export class TransactionService {
@@ -81,7 +81,7 @@ export class TransactionService {
       if (category.kind !== expectedKind) throw new Error("收支类型与分类不匹配");
       const rule = category.systemKey ? SPECIAL_RULES[category.systemKey] : undefined;
       if (rule) {
-        if (rule.tradeType !== input.tradeType) throw new Error("特殊分类与收支类型不匹配");
+        if (!rule.tradeTypes.includes(input.tradeType)) throw new Error("特殊分类与收支类型不匹配");
         statusCode = statusCode && rule.statuses.includes(statusCode) ? statusCode : rule.defaultStatus;
         tagId = null;
       } else {

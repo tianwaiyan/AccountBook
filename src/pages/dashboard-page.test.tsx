@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReferenceData } from "@/hooks/use-reference-data";
 import type { ChartDatum, MonthSummary, MonthlyTrendDatum, Transaction, TrackingRecord, YearlyCategoryDatum } from "@/types/domain";
 import type { PropsWithChildren } from "react";
+import { formatMoney } from "@/utils/money";
 
 const { analyticsRepository, transactionRepository } = vi.hoisted(() => ({
   analyticsRepository: {
@@ -145,6 +146,30 @@ describe("DashboardPage pie details", () => {
     fireEvent.click(document.querySelector('[data-pie-slice="伙食费用"]') as Element);
 
     expect(await screen.findByText("该月份暂无匹配项目")).toBeInTheDocument();
+  });
+
+  it("keeps negative net values below the pie and opens their signed details", async () => {
+    const refundRow = { ...foodRow, id: "food-refund", tradeType: "refund" as const, amountMinor: 12_000 };
+    const negativeSummary = { ...summary, expenseMinor: -12_000, balanceMinor: -3_000 };
+    const negativeCategory = [{ name: "伙食费用", value: -12_000, count: 1 }];
+    const negativeTag = [{ name: "品质生活", value: -12_000, count: 1 }];
+    analyticsRepository.monthSummary.mockResolvedValue(negativeSummary);
+    analyticsRepository.monthlyTrend.mockResolvedValue([{ ...trend[0], expenseMinor: -12_000 }]);
+    analyticsRepository.categoryTotals.mockResolvedValue(negativeCategory);
+    analyticsRepository.tagTotals.mockImplementation(async (_bookId: string, _month: string, kind: "expense" | "income") => kind === "income" ? incomeTags : negativeTag);
+    analyticsRepository.yearlyCategoryTotals.mockResolvedValue([{ ...yearly[0], totalMinor: -12_000 }]);
+    transactionRepository.list.mockResolvedValue([refundRow]);
+
+    await renderDashboard();
+
+    expect(screen.getAllByText(formatMoney(-12_000, { sign: true })).length).toBeGreaterThan(0);
+    const negativeItem = document.querySelector('[data-negative-net-item="伙食费用"]');
+    expect(negativeItem).toBeTruthy();
+    fireEvent.click(negativeItem as Element);
+
+    const panel = await screen.findByTestId("pie-detail-panel");
+    expect(panel.querySelector("tbody td:nth-child(4)")?.textContent).toBe(formatMoney(-12_000, { sign: true }));
+    expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ tradeTypes: ["expense", "refund"] }));
   });
 });
 

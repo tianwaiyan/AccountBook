@@ -7,6 +7,11 @@ export function formatLocalDateTime(value: Date = new Date()): string {
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
 }
 
+export function formatUtcDateTime(value: Date): string {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())}`;
+}
+
 export function getDateTimeValidationError(value: unknown): string | null {
   const text = String(value ?? "");
   if (!DATE_TIME_PATTERN.test(text)) return "请输入 YYYY-MM-DD HH:MM:SS";
@@ -44,6 +49,11 @@ export function normalizeDateTime(value: unknown): string {
     throw new Error(`无法识别交易时间：${text || "空白"}`);
   }
   return formatLocalDateTime(parsed);
+}
+
+export function normalizeExcelDateTime(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return formatUtcDateTime(value);
+  return normalizeDateTime(value);
 }
 
 function daysInMonth(year: number, month: number): number {

@@ -61,6 +61,20 @@ describe("TransactionService", () => {
     expect(created[0].statusCode).toBe("pending_reimbursement");
   });
 
+  it("allows public expense refunds and keeps their settled status", async () => {
+    const { created, service } = makeRepositories();
+    await service.createManual("book-default", {
+      ...baseInput,
+      tradeType: "refund",
+      categoryId: "public",
+      tagId: "tag",
+      statusCode: "settled",
+    });
+    expect(created[0].amountMinor).toBe(1234);
+    expect(created[0].tagId).toBeNull();
+    expect(created[0].statusCode).toBe("settled");
+  });
+
   it("allows two manual transactions with identical content", async () => {
     const { created, service } = makeRepositories();
     await service.createManual("book-default", baseInput);

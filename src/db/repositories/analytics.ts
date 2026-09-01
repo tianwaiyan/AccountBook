@@ -34,10 +34,10 @@ export class SqliteAnalyticsRepository implements AnalyticsRepository {
       settledReimbursementMinor: number;
     }>>(
       `SELECT
-        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_expense' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughOutgoingMinor,
-        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_income' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS passThroughIncomingMinor,
-        COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'pending_reimbursement' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS pendingReimbursementMinor,
-        COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'settled' THEN ABS(t.amount_minor) ELSE 0 END), 0) AS settledReimbursementMinor
+        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_expense' THEN CASE WHEN t.trade_type = 'refund' THEN -ABS(t.amount_minor) ELSE ABS(t.amount_minor) END ELSE 0 END), 0) AS passThroughOutgoingMinor,
+        COALESCE(SUM(CASE WHEN c.system_key = 'pass_through_income' THEN CASE WHEN t.trade_type = 'refund' THEN -ABS(t.amount_minor) ELSE ABS(t.amount_minor) END ELSE 0 END), 0) AS passThroughIncomingMinor,
+        COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'pending_reimbursement' THEN CASE WHEN t.trade_type = 'refund' THEN -ABS(t.amount_minor) ELSE ABS(t.amount_minor) END ELSE 0 END), 0) AS pendingReimbursementMinor,
+        COALESCE(SUM(CASE WHEN c.system_key = 'public_expense' AND t.status_code = 'settled' THEN CASE WHEN t.trade_type = 'refund' THEN -ABS(t.amount_minor) ELSE ABS(t.amount_minor) END ELSE 0 END), 0) AS settledReimbursementMinor
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.book_id = ? AND t.deleted_at IS NULL`,
       [bookId],
@@ -82,7 +82,7 @@ export class SqliteAnalyticsRepository implements AnalyticsRepository {
          AND t.trade_type IN ('expense', 'refund')
          AND t.category_id IS NOT NULL
          AND COALESCE(c.system_key, '') NOT IN ${PERSONAL_EXCLUDED}
-       GROUP BY COALESCE(c.name, '待分类') HAVING value > 0 ORDER BY value DESC`,
+       GROUP BY COALESCE(c.name, '待分类') HAVING value != 0 ORDER BY value DESC`,
       [bookId, yearMonth],
     );
   }
@@ -102,7 +102,7 @@ export class SqliteAnalyticsRepository implements AnalyticsRepository {
          AND t.trade_type IN ${types}
          AND t.tag_id IS NOT NULL
          AND COALESCE(c.system_key, '') NOT IN ${PERSONAL_EXCLUDED}
-       GROUP BY COALESCE(g.name, '未设置') HAVING value > 0 ORDER BY value DESC`,
+       GROUP BY COALESCE(g.name, '未设置') HAVING value != 0 ORDER BY value DESC`,
       [bookId, yearMonth],
     );
   }
@@ -118,7 +118,7 @@ export class SqliteAnalyticsRepository implements AnalyticsRepository {
          AND t.trade_type IN ('expense', 'refund')
          AND t.category_id IS NOT NULL
          AND COALESCE(c.system_key, '') NOT IN ${PERSONAL_EXCLUDED}
-       GROUP BY categoryId, categoryName, month HAVING totalMinor > 0
+       GROUP BY categoryId, categoryName, month HAVING totalMinor != 0
        ORDER BY categoryName, month`,
       [bookId, year],
     );

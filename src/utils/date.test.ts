@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTransactionDisplayDateTime, getDateTimeValidationError, isValidDateTime, normalizeDateTime } from "@/utils/date";
+import { formatTransactionDisplayDateTime, getDateTimeValidationError, isValidDateTime, normalizeDateTime, normalizeExcelDateTime } from "@/utils/date";
 
 describe("formatTransactionDisplayDateTime", () => {
   it("keeps the full local date and time by default", () => {
@@ -22,5 +22,10 @@ describe("date time validation", () => {
     expect(getDateTimeValidationError("0000-01-01 00:00:00")).toBe("年份必须在 0001-9999 之间");
     expect(isValidDateTime(" 2026-01-01 00:00:00")).toBe(false);
     expect(() => normalizeDateTime("2026-02-30 00:00:00")).toThrow("无法识别交易时间");
+  });
+
+  it("uses UTC fields for Excel Date values and keeps CSV strings unchanged", () => {
+    expect(normalizeExcelDateTime(new Date("2026-08-08T08:00:00.000Z"))).toBe("2026-08-08 08:00:00");
+    expect(normalizeExcelDateTime("2026-08-08 08:00:00")).toBe("2026-08-08 08:00:00");
   });
 });

@@ -118,11 +118,36 @@ describe("TransactionsPage editing", () => {
     expect(occurredAtInputs[0]).toHaveAttribute("aria-invalid", "true");
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
 
-    await waitFor(() => expect(screen.getByText(/不是合法的日期时间/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByText(/不是合法的日期时间/)).toBeInTheDocument();
     expect(occurredAtInputs[0]).toHaveValue("2026-02-30 08:10:00");
-    expect(screen.getByRole("button", { name: "保存修改" })).toBeInTheDocument();
     expect(transactionService.bulkUpdate).not.toHaveBeenCalled();
     expect(transactionService.createManual).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "返回修改" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(occurredAtInputs[0]).toHaveValue("2026-02-30 08:10:00");
+    expect(screen.getByRole("button", { name: "保存修改" })).toBeInTheDocument();
+  });
+
+  it("shows save failures in a modal and keeps the draft editable", async () => {
+    transactionService.bulkUpdate.mockRejectedValueOnce(new Error("特殊分类与收支类型不匹配"));
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+    await enterEditMode();
+
+    const remarkInput = screen.getAllByDisplayValue("早餐")[0];
+    fireEvent.change(remarkInput, { target: { value: "退款草稿" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByText("特殊分类与收支类型不匹配")).toBeInTheDocument();
+    expect(remarkInput).toHaveValue("退款草稿");
+
+    fireEvent.click(screen.getByRole("button", { name: "返回修改" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(remarkInput).toHaveValue("退款草稿");
+    expect(screen.getByRole("button", { name: "保存修改" })).toBeInTheDocument();
   });
 
   it("keeps amount text editable and rounds only when the draft is saved", async () => {

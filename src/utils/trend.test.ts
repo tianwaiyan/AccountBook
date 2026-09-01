@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampTrendVisibleMonths, getTrendAxisTicks, getTrendDomainMaximum, getTrendVisibleRange, toTrendPoints } from "@/utils/trend";
+import { clampTrendVisibleMonths, getTrendAxisTicks, getTrendDomainMaximum, getTrendDomainMinimum, getTrendVisibleRange, toTrendPoints } from "@/utils/trend";
 
 describe("trend viewport calculations", () => {
   it("keeps the zoom range at least 12 months", () => {
@@ -19,6 +19,13 @@ describe("trend viewport calculations", () => {
     expect(getTrendDomainMaximum(points, { startIndex: 0, endIndex: 2 })).toBe(80);
     expect(getTrendDomainMaximum(points, { startIndex: 2, endIndex: 3 })).toBe(120);
     expect(getTrendDomainMaximum([{ month: "2026-01", income: 0, expense: 0 }], { startIndex: 0, endIndex: 1 })).toBe(1);
+  });
+
+  it("includes negative refunds in the visible domain and axis ticks", () => {
+    const points = [{ month: "2026-01", income: 0, expense: -80 }, { month: "2026-02", income: 120, expense: 40 }];
+    const range = { startIndex: 0, endIndex: 2 };
+    expect(getTrendDomainMinimum(points, range)).toBe(-80);
+    expect(getTrendAxisTicks(120, 5, -80)).toEqual([-80, -40, 0, 60, 120]);
   });
 
   it("includes the zero axis and current maximum in the y-axis ticks", () => {
