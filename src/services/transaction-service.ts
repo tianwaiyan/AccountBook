@@ -6,6 +6,7 @@ import type {
   Transaction,
   TransactionInput,
 } from "@/types/domain";
+import { isValidDateTime } from "@/utils/date";
 
 const SPECIAL_RULES: Record<string, { tradeType: TransactionInput["tradeType"]; statuses: StatusCode[]; defaultStatus: StatusCode }> = {
   public_expense: { tradeType: "expense", statuses: ["pending_reimbursement", "settled"], defaultStatus: "pending_reimbursement" },
@@ -65,6 +66,7 @@ export class TransactionService {
   private async normalize(input: TransactionInput, allowDefaultTag: boolean): Promise<TransactionInput> {
     if (!input.accountId) throw new Error("请选择账户");
     if (!input.occurredAt) throw new Error("请输入交易时间");
+    if (!isValidDateTime(input.occurredAt)) throw new Error("请输入合法的 YYYY-MM-DD HH:MM:SS");
     const magnitude = Math.abs(Math.round(input.amountMinor));
     if (!magnitude) throw new Error("金额必须大于 0");
     const amountMinor = input.tradeType === "expense" ? -magnitude : magnitude;

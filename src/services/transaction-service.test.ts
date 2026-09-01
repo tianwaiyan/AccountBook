@@ -67,5 +67,11 @@ describe("TransactionService", () => {
     await service.createManual("book-default", baseInput);
     expect(created).toHaveLength(2);
   });
+
+  it("rejects an invalid date before writing", async () => {
+    const { created, service } = makeRepositories();
+    await expect(service.createManual("book-default", { ...baseInput, occurredAt: "2026-02-30 10:20:30" })).rejects.toThrow("请输入合法的 YYYY-MM-DD HH:MM:SS");
+    expect(created).toHaveLength(0);
+  });
 });
 

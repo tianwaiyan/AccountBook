@@ -11,7 +11,7 @@ import type {
   Transaction,
   TradeType,
 } from "@/types/domain";
-import { createImportFingerprint } from "@/utils/fingerprint";
+import { createImportFingerprint, importBusinessKey } from "@/utils/fingerprint";
 import { normalizeDateTime } from "@/utils/date";
 import { signedMinor } from "@/utils/money";
 
@@ -289,10 +289,12 @@ export class ImportService {
       candidates = await parseCanonicalCsv(buffer);
     }
 
-    const [savedMappings, categories, tags] = await Promise.all([
+    const [savedMappings, categories, tags, accounts, existingTransactions] = await Promise.all([
       this.mappings.list(bookId, source),
       this.options.listCategories(bookId, true),
       this.options.listTags(bookId, true),
+      this.options.listAccounts(bookId, true),
+      this.transactions.list({ bookId, sortBy: "occurredAt", sortDirection: "asc" }),
     ]);
     const mappingMap = new Map(savedMappings.map((mapping) => [`${mapping.tradeType}:${mapping.sourceCategory}`, mapping.categoryId]));
     candidates = candidates.map((candidate) => {
@@ -305,10 +307,25 @@ export class ImportService {
         tagId: exactTag?.id ?? null,
       };
     });
+    const accountIdsByName = new Map(accounts.map((account) => [account.name.trim(), account.id]));
+    const accountIdentity = (accountName: string) => accountIdsByName.get(accountName.trim()) ?? `name:${accountName.trim()}`;
+    candidates = await Promise.all(candidates.map(async (candidate) => ({
+      ...candidate,
+      fingerprint: await createImportFingerprint(candidate, accountIdentity(candidate.accountName)),
+    })));
+    const existingKeys = new Set(existingTransactions.map((transaction) => importBusinessKey(transaction, transaction.accountId)));
+    const seenKeys = new Set<string>();
+    const withDuplicateReasons = candidates.map((candidate) => {
+      const key = importBusinessKey(candidate, accountIdentity(candidate.accountName));
+      const duplicate = existingKeys.has(key) || seenKeys.has(key);
+      seenKeys.add(key);
+      if (candidate.excludedReason || !duplicate) return candidate;
+      return { ...candidate, excludedReason: "记录重复" };
+    });
     return {
-      candidates: candidates.filter((candidate) => !candidate.excludedReason),
-      excluded: candidates.filter((candidate) => Boolean(candidate.excludedReason)),
-      sourceCategories: [...new Set(candidates.map((candidate) => candidate.sourceCategory).filter(Boolean))].sort(),
+      candidates: withDuplicateReasons.filter((candidate) => !candidate.excludedReason),
+      excluded: withDuplicateReasons.filter((candidate) => Boolean(candidate.excludedReason)),
+      sourceCategories: [...new Set(withDuplicateReasons.map((candidate) => candidate.sourceCategory).filter(Boolean))].sort(),
     };
   }
 

@@ -2,8 +2,9 @@ import { lazy, Suspense, useState } from "react";
 import { AppShell, type PageId } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/components/feedback";
-import { QuickEntryDialog } from "@/features/transactions/quick-entry-dialog";
+import { EntryDialog } from "@/features/transactions/entry-dialog";
 import { useReferenceData } from "@/hooks/use-reference-data";
+import type { ImportCandidate } from "@/types/domain";
 
 const DashboardPage = lazy(() => import("@/pages/dashboard-page").then((module) => ({ default: module.DashboardPage })));
 const TransactionsPage = lazy(() => import("@/pages/transactions-page").then((module) => ({ default: module.TransactionsPage })));
@@ -13,7 +14,8 @@ const SettingsPage = lazy(() => import("@/pages/settings-page").then((module) =>
 
 export default function App() {
   const [page, setPage] = useState<PageId>("dashboard");
-  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
+  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [excludedHistory, setExcludedHistory] = useState<ImportCandidate[]>([]);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [transactionsDirty, setTransactionsDirty] = useState(false);
   const [pendingPage, setPendingPage] = useState<PageId | null>(null);
@@ -34,13 +36,13 @@ export default function App() {
   else if (error) content = <ErrorState message={error} />;
   else if (page === "dashboard") content = <DashboardPage referenceData={data} refreshVersion={refreshVersion} />;
   else if (page === "transactions") content = <TransactionsPage referenceData={data} refreshVersion={refreshVersion} onChanged={changed} onDirtyChange={setTransactionsDirty} />;
-  else if (page === "import") content = <ImportPage onChanged={changed} />;
+  else if (page === "import") content = <ImportPage onChanged={changed} excludedHistory={excludedHistory} onExcludedHistoryChange={setExcludedHistory} />;
   else if (page === "options") content = <OptionsPage refreshVersion={refreshVersion} onChanged={changed} />;
   else content = <SettingsPage />;
 
   return <>
-    <AppShell page={page} onPageChange={requestPage} onQuickEntry={() => setQuickEntryOpen(true)}><Suspense fallback={<LoadingState />}>{content}</Suspense></AppShell>
-    <QuickEntryDialog open={quickEntryOpen} onOpenChange={setQuickEntryOpen} referenceData={data} onSaved={changed} />
+    <AppShell page={page} onPageChange={requestPage} onQuickEntry={() => setEntryDialogOpen(true)}><Suspense fallback={<LoadingState />}>{content}</Suspense></AppShell>
+    <EntryDialog open={entryDialogOpen} onOpenChange={setEntryDialogOpen} referenceData={data} onSaved={changed} />
     <ConfirmDialog
       open={Boolean(pendingPage)}
       onOpenChange={(open) => { if (!open) setPendingPage(null); }}

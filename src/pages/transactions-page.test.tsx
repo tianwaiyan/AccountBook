@@ -108,6 +108,23 @@ describe("TransactionsPage editing", () => {
     expect(mobileOccurredAtInput).toHaveValue("2026-08-08 11:12:00");
   });
 
+  it("blocks saving an illegal date in the desktop and mobile editing flow", async () => {
+    render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
+    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+    await enterEditMode();
+
+    const occurredAtInputs = screen.getAllByRole("textbox", { name: "交易时间" });
+    fireEvent.change(occurredAtInputs[0], { target: { value: "2026-02-30 08:10:00" } });
+    expect(occurredAtInputs[0]).toHaveAttribute("aria-invalid", "true");
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => expect(screen.getByText(/不是合法的日期时间/)).toBeInTheDocument());
+    expect(occurredAtInputs[0]).toHaveValue("2026-02-30 08:10:00");
+    expect(screen.getByRole("button", { name: "保存修改" })).toBeInTheDocument();
+    expect(transactionService.bulkUpdate).not.toHaveBeenCalled();
+    expect(transactionService.createManual).not.toHaveBeenCalled();
+  });
+
   it("keeps amount text editable and rounds only when the draft is saved", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());

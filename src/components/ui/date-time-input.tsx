@@ -1,6 +1,7 @@
 import { forwardRef, memo, useRef } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { cn } from "@/utils/cn";
+import { DATE_TIME_PATTERN, getDateTimeValidationError } from "@/utils/date";
 
 const SEGMENT_LENGTHS = [4, 2, 2, 2, 2, 2] as const;
 const SEPARATORS = ["-", "-", " ", ":", ":", ""] as const;
@@ -19,9 +20,10 @@ export interface DateTimeInputProps {
   compact?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
+  onValidityChange?: (message: string | null) => void;
 }
 
-export const DateTimeInput = memo(forwardRef<HTMLInputElement, DateTimeInputProps>(function DateTimeInput({ value, onChange, onBlur, className, compact = false, disabled = false, ariaLabel = "交易时间" }, forwardedRef) {
+export const DateTimeInput = memo(forwardRef<HTMLInputElement, DateTimeInputProps>(function DateTimeInput({ value, onChange, onBlur, className, compact = false, disabled = false, ariaLabel = "交易时间", onValidityChange }, forwardedRef) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const assignRef = (element: HTMLInputElement | null) => {
@@ -45,13 +47,29 @@ export const DateTimeInput = memo(forwardRef<HTMLInputElement, DateTimeInputProp
     const caret = event.currentTarget.selectionStart ?? rawValue.length;
     const nextValue = formatPartialDateTime(rawValue);
     onChange(nextValue);
+    onValidityChange?.(DATE_TIME_PATTERN.test(nextValue) ? getDateTimeValidationError(nextValue) : null);
     scheduleCaret(getCaretPosition(rawValue, nextValue, caret));
   };
 
   const handleBlur = () => {
     const normalized = composeDateTime(normalizeDateTimeParts(splitDateTime(value)));
     if (normalized !== value) onChange(normalized);
+    onValidityChange?.(getDateTimeValidationError(normalized));
     onBlur?.();
+  };
+
+  const handleClick = () => {
+    const input = inputRef.current;
+    if (!input || document.activeElement !== input) return;
+    const caret = input.selectionStart ?? input.value.length;
+    const segment = findSegmentAtCaret(input.value, caret);
+    if (!segment) return;
+    const select = () => {
+      if (document.activeElement !== input) return;
+      input.setSelectionRange(segment[0], segment[1]);
+    };
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(select);
+    else window.setTimeout(select, 0);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -65,7 +83,8 @@ export const DateTimeInput = memo(forwardRef<HTMLInputElement, DateTimeInputProp
     }
   };
 
-  return <input ref={assignRef} className={cn(compact ? CELL_INPUT_CLASS : FORM_INPUT_CLASS, className)} type="text" inputMode="numeric" aria-label={ariaLabel} value={value} onChange={handleChange} onBlur={handleBlur} onKeyDown={handleKeyDown} disabled={disabled} />;
+  const invalid = DATE_TIME_PATTERN.test(value) && Boolean(getDateTimeValidationError(value));
+  return <input ref={assignRef} className={cn(compact ? CELL_INPUT_CLASS : FORM_INPUT_CLASS, className)} type="text" inputMode="numeric" aria-label={ariaLabel} aria-invalid={invalid || undefined} value={value} onChange={handleChange} onBlur={handleBlur} onClick={handleClick} onKeyDown={handleKeyDown} disabled={disabled} />;
 }));
 
 DateTimeInput.displayName = "DateTimeInput";
@@ -126,6 +145,30 @@ function normalizeDateTimeParts(parts: DateTimeParts): DateTimeParts {
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
+}
+
+function findSegmentAtCaret(value: string, caret: number): [number, number] | null {
+  const parts = splitDateTime(value);
+  const ranges: Array<[number, number]> = [];
+  let position = 0;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (index > 0) {
+      const previous = parts[index - 1];
+      if (previous.length !== SEGMENT_LENGTHS[index - 1] && part.length === 0) break;
+      position += SEPARATORS[index - 1].length;
+    }
+    ranges.push([position, position + part.length]);
+    position += part.length;
+  }
+  if (!ranges.length) return null;
+  for (let index = 0; index < ranges.length; index += 1) {
+    const [start, end] = ranges[index];
+    if (caret < end || (start === end && caret === start)) return [start, end];
+    const nextStart = ranges[index + 1]?.[0];
+    if (nextStart !== undefined && caret < nextStart) return ranges[index + 1];
+  }
+  return ranges[ranges.length - 1];
 }
 
 function getCaretPosition(rawValue: string, formattedValue: string, rawCaret: number): number {

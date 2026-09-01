@@ -8,7 +8,7 @@ import {
   normalizeCsvLineEndings,
   protectSpreadsheetText,
 } from "@/services/import-service";
-import type { Category, Transaction } from "@/types/domain";
+import type { Account, Category, Transaction } from "@/types/domain";
 import { createImportFingerprint, FINGERPRINT_VERSION } from "@/utils/fingerprint";
 
 const foodCategory: Category = {
@@ -22,11 +22,18 @@ const foodCategory: Category = {
   isActive: true,
 };
 
-function service() {
+const importAccounts: Account[] = [
+  { id: "account-alipay", bookId: "book-default", name: "支付宝", sortOrder: 0, isActive: true },
+  { id: "account-wechat", bookId: "book-default", name: "微信", sortOrder: 1, isActive: true },
+];
+
+function service(existingTransactions: Transaction[] = []) {
   const transactionRepository = {
+    list: vi.fn(async () => existingTransactions),
     commitImport: vi.fn(async (_bookId, candidates) => ({ inserted: candidates.length, skipped: 0 })),
   } as unknown as TransactionRepository;
   const optionRepository = {
+    listAccounts: vi.fn(async () => importAccounts),
     listCategories: vi.fn(async () => [foodCategory]),
     listTags: vi.fn(async () => []),
   } as unknown as OptionRepository;
@@ -155,6 +162,83 @@ describe("ImportService", () => {
     ]) {
       expect(await createImportFingerprint(changed)).not.toBe(await createImportFingerprint(base));
     }
+  });
+
+  it("filters existing and same-batch duplicates by business fields while ignoring remarks", async () => {
+    const csv = [
+      "occurred_at,account,trade_type,amount,category,tag,status,remark,counterparty,payment_channel,source_category",
+      "2026-08-08 08:00:00,支付宝,expense,-1.00,伙食费用,,,,早餐店,余额,餐饮",
+      "2026-08-08 08:00:00,支付宝,expense,-1.00,伙食费用,,,,早餐店,余额,餐饮",
+      "2026-08-08 09:00:00,支付宝,expense,-2.00,伙食费用,,,,午餐店,余额,餐饮",
+    ].join("\n");
+    const existing: Transaction = {
+      id: "existing",
+      bookId: "book-default",
+      occurredAt: "2026-08-08 09:00:00",
+      accountId: "account-alipay",
+      accountName: "支付宝",
+      tradeType: "expense",
+      amountMinor: -200,
+      categoryId: "food",
+      categoryName: "伙食费用",
+      categorySystemKey: null,
+      tagId: null,
+      tagName: null,
+      statusCode: null,
+      remark: "旧备注",
+      counterparty: "午餐店",
+      paymentChannel: "余额",
+      source: "manual",
+      sourceCategory: null,
+      importFingerprint: "v1-old",
+      fingerprintVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    };
+
+    const preview = await service([existing]).preview(new File([csv], "canonical.csv", { type: "text/csv" }), "canonical_csv", "book-default");
+    expect(preview.candidates).toHaveLength(1);
+    expect(preview.candidates[0].occurredAt).toBe("2026-08-08 08:00:00");
+    expect(preview.excluded.map((row) => row.excludedReason)).toEqual(["记录重复", "记录重复"]);
+  });
+
+  it("allows import when any duplicate business field changes", async () => {
+    const existing: Transaction = {
+      id: "existing-fields",
+      bookId: "book-default",
+      occurredAt: "2026-08-08 08:00:00",
+      accountId: "account-alipay",
+      accountName: "支付宝",
+      tradeType: "expense",
+      amountMinor: -100,
+      categoryId: null,
+      categoryName: null,
+      categorySystemKey: null,
+      tagId: null,
+      tagName: null,
+      statusCode: null,
+      remark: "旧备注",
+      counterparty: "早餐店",
+      paymentChannel: "余额",
+      source: "manual",
+      sourceCategory: null,
+      importFingerprint: "v1-old",
+      fingerprintVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    };
+    const csv = [
+      "occurred_at,account,trade_type,amount,category,tag,status,remark,counterparty,payment_channel,source_category",
+      "2026-08-08 08:00:01,支付宝,expense,-1.00,,,,新备注,早餐店,余额,",
+      "2026-08-08 08:00:00,微信,expense,-1.00,,,,备注,早餐店,零钱,",
+      "2026-08-08 08:00:00,支付宝,expense,-2.00,,,,备注,早餐店,余额,",
+      "2026-08-08 08:00:00,支付宝,expense,-1.00,,,,备注,午餐店,余额,",
+      "2026-08-08 08:00:00,支付宝,expense,-1.00,,,,备注,早餐店,银行卡,",
+    ].join("\n");
+
+    const preview = await service([existing]).preview(new File([csv], "canonical.csv", { type: "text/csv" }), "canonical_csv", "book-default");
+    expect(preview.candidates).toHaveLength(5);
+    expect(preview.excluded).toHaveLength(0);
   });
 
   it("protects spreadsheet formula text while preserving ordinary text", () => {

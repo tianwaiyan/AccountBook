@@ -60,6 +60,7 @@ const reimbursements: TrackingRecord[] = [{ id: "reimbursement-1", occurredAt: "
 const transfers: TrackingRecord[] = [];
 
 const foodRow = makeTransaction("food-1", "2026-08-08 08:10:00", "现金", "expense", -1_850, "伙食费用", "品质生活", "社区早餐店", "早餐");
+const lateFoodRow = makeTransaction("food-2", "2026-08-08 18:10:00", "现金", "expense", -2_200, "伙食费用", "品质生活", "晚餐店", "晚餐");
 const salaryRow = makeTransaction("salary-1", "2026-08-07 14:00:00", "银行卡", "income", 1_850_000, "工资收入", "劳动收入", "公司", "八月工资");
 
 const referenceData: ReferenceData = {
@@ -113,6 +114,16 @@ describe("DashboardPage pie details", () => {
     fireEvent.click(document.querySelector('[data-pie-slice="品质生活"]') as Element);
     await waitFor(() => expect(screen.getByText("2026年8月 · 支出标签：品质生活")).toBeInTheDocument());
     expect(transactionRepository.list).toHaveBeenLastCalledWith(expect.objectContaining({ tradeTypes: ["expense", "refund"] }));
+  });
+
+  it("uses the fixed transaction detail column order and sorts matching rows by time", async () => {
+    transactionRepository.list.mockResolvedValue([lateFoodRow, salaryRow, foodRow]);
+    await renderDashboard();
+    fireEvent.click(document.querySelector('[data-pie-slice="伙食费用"]') as Element);
+
+    const panel = await screen.findByTestId("pie-detail-panel");
+    expect([...panel.querySelectorAll("thead th")].map((cell) => cell.textContent)).toEqual(["时间", "账户", "收支", "金额", "备注", "交易对方", "支付方式"]);
+    expect([...panel.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent)).toEqual(["2026-08-08 08:10:00", "2026-08-08 18:10:00"]);
   });
 
   it("toggles the selected detail and keeps reimbursement below it", async () => {

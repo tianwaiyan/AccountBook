@@ -23,7 +23,6 @@ import {
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState, LoadingState } from "@/components/feedback";
-import { BatchPresetDialog } from "@/features/monthly-presets/batch-preset-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,7 +35,7 @@ import type { ReferenceData } from "@/hooks/use-reference-data";
 import { settingsRepository, transactionRepository, transactionService } from "@/services/registry";
 import type { Category, StatusCode, Transaction, TransactionInput, TransactionQuery, TradeType } from "@/types/domain";
 import { DEFAULT_BOOK_ID, statusLabels, tradeTypeLabels } from "@/types/domain";
-import { currentYearMonth, formatTransactionDisplayDateTime, type TransactionDateDisplay } from "@/utils/date";
+import { currentYearMonth, formatTransactionDisplayDateTime, isValidDateTime, type TransactionDateDisplay } from "@/utils/date";
 import { cn } from "@/utils/cn";
 import { formatMoney, signedMinor } from "@/utils/money";
 
@@ -99,8 +98,8 @@ export function TransactionsPage({
   const [newDraftIds, setNewDraftIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
-  const [presetBatchOpen, setPresetBatchOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER);
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [dateDisplay, setDateDisplay] = useState<TransactionDateDisplay>("full");
@@ -197,6 +196,7 @@ export function TransactionsPage({
   const visibleRows = useMemo(() => rows.filter((row) => !deletedIds.has(row.id)), [rows, deletedIds]);
 
   const beginEdit = () => {
+    setEditError(null);
     setBaselines((current) => mergeTransactions(current, rows));
     setDrafts((current) => mergeTransactions(current, rows));
     setAmountTexts(new Map(rows.map((row) => [row.id, formatDraftAmount(row.amountMinor)])));
@@ -205,6 +205,7 @@ export function TransactionsPage({
   };
 
   const cancelEdit = () => {
+    setEditError(null);
     setEditMode(false);
     setDrafts(new Map());
     setAmountTexts(new Map());
@@ -216,19 +217,24 @@ export function TransactionsPage({
   };
 
   const saveEdit = async () => {
+    setEditError(null);
     try {
       const updates: Array<{ id: string; input: TransactionInput }> = [];
+      const materializedDrafts = new Map<string, Transaction>();
       for (const [id, draft] of drafts) {
-        if (newDraftIds.has(id) || deletedIds.has(id)) continue;
-        const baseline = baselines.get(id);
+        if (deletedIds.has(id)) continue;
         const materialized = materializeDraftAmount(id, draft, amountTextsRef.current);
+        materializedDrafts.set(id, materialized);
+        if (!isValidDateTime(materialized.occurredAt)) throw new Error(`流水 ${materialized.occurredAt || "日期为空"} 不是合法的日期时间`);
+        if (newDraftIds.has(id)) continue;
+        const baseline = baselines.get(id);
         if (baseline && transactionSignature(materialized) !== transactionSignature(baseline)) updates.push({ id, input: toInput(materialized) });
       }
       await transactionService.bulkUpdate(updates);
       for (const id of newDraftIds) {
         const draft = drafts.get(id);
         if (draft && !deletedIds.has(id)) {
-          const materialized = materializeDraftAmount(id, draft, amountTextsRef.current);
+          const materialized = materializedDrafts.get(id) ?? materializeDraftAmount(id, draft, amountTextsRef.current);
           await transactionService.createManual(DEFAULT_BOOK_ID, toInput(materialized));
         }
       }
@@ -238,7 +244,7 @@ export function TransactionsPage({
       setNotice(message);
       onChanged();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setEditError(reason instanceof Error ? reason.message : String(reason));
     }
   };
 
@@ -347,18 +353,18 @@ export function TransactionsPage({
      <TransactionToolbar selectedMonth={selectedMonth} onMonthChange={(month: string) => { setSelectedMonth(month); setKeyword(""); clearColumnFilters(); }} months={referenceData.months} keyword={keyword} onKeywordChange={setKeyword} />
      <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} sort={sort} setSort={setExplicitSort} onClearSort={clearSort} amountError={amountError} onClear={clearColumnFilters} />
     <div className="flex min-h-9 flex-wrap items-center gap-2">
-      {!editMode ? <><Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button><Button variant="outline" onClick={() => setPresetBatchOpen(true)}><SlidersHorizontal className="size-4" />批量记账</Button></> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
+      {!editMode ? <><Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button></> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
       <Button variant="outline" onClick={clearColumnFilters} disabled={!hasActiveTableQuery}><RotateCcw className="size-4" />取消筛选</Button>
       <Button variant="outline" onClick={copySelected} disabled={selectedIds.size !== 1}><Copy className="size-4" />复制</Button>
       <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)} disabled={!selectedIds.size}><Trash2 className="size-4" />删除</Button>
       <span className="ml-auto text-xs text-muted-foreground">{deferredKeyword ? "全库" : selectedMonth} · {visibleRows.length} 条{selectedIds.size ? ` · 已选 ${selectedIds.size}` : ""}</span>
     </div>
     {notice && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
+    {editError && <div role="alert" className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{editError}</div>}
     {amountError && <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{amountError}</div>}
     {loading && !hasLoadedTransactions ? <LoadingState label="正在读取流水" /> : <><DesktopTransactionGrid table={table} editMode={editMode} selectedIds={selectedIds} setColumnOrder={setColumnOrder} headerFilters={headerFilters} onCloseFilter={() => setOpenFilter(null)} /><MobileTransactionCards rows={visibleRows} getEditableRow={getEditableRow} selectedIds={selectedIds} setSelectedIds={setSelectedIds} editMode={editMode} referenceData={referenceData} updateDraft={updateDraft} dateDisplay={dateDisplay} /></>}
     <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={editMode ? "从草稿移除流水" : "删除流水"} description={editMode ? "删除将在保存整表修改后写入数据库。" : `确定删除已选择的 ${selectedIds.size} 条流水吗？`} confirmLabel="删除" destructive onConfirm={deleteSelected} />
     <BatchDialog open={batchOpen} onOpenChange={setBatchOpen} selectedIds={selectedIds} drafts={drafts} referenceData={referenceData} setDrafts={setDrafts} />
-    <BatchPresetDialog open={presetBatchOpen} onOpenChange={setPresetBatchOpen} selectedMonth={selectedMonth} onGenerated={onChanged} />
   </div>;
 }
 

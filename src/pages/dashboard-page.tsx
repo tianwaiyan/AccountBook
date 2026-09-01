@@ -28,7 +28,7 @@ import type {
   Transaction,
   YearlyCategoryDatum,
 } from "@/types/domain";
-import { DEFAULT_BOOK_ID, statusLabels, type TradeType } from "@/types/domain";
+import { DEFAULT_BOOK_ID, statusLabels, tradeTypeLabels, type TradeType } from "@/types/domain";
 import { currentYearMonth, monthLabel } from "@/utils/date";
 import { formatMoney, minorToYuan } from "@/utils/money";
 import { cn } from "@/utils/cn";
@@ -114,7 +114,9 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
     }).then((rows) => {
       if (!active) return;
       const field = pieSelection.dimension === "category" ? "categoryName" : "tagName";
-      setPieDetailRows(rows.filter((row) => !PERSONAL_EXCLUDED_SYSTEM_KEYS.has(row.categorySystemKey ?? "") && row[field] === pieSelection.name));
+      setPieDetailRows(rows
+        .filter((row) => !PERSONAL_EXCLUDED_SYSTEM_KEYS.has(row.categorySystemKey ?? "") && row[field] === pieSelection.name)
+        .sort(compareTransactionOrder));
       setPieDetailLoading(false);
     }).catch((reason) => {
       if (!active) return;
@@ -335,9 +337,15 @@ function PieDetailPanel({ selection, rows, loading, error, onClose }: { selectio
       <Button size="icon" variant="ghost" title="关闭明细" aria-label="关闭扇形明细" onClick={onClose}><X className="size-4" /></Button>
     </CardHeader>
     <CardContent>
-      {loading ? <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">正在读取明细</div> : error ? <p className="py-8 text-center text-sm text-destructive" role="alert">{error}</p> : rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="px-3 py-2 text-left">时间</th><th className="px-3 py-2 text-left">账户</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-left">交易对方</th><th className="px-3 py-2 text-left">支付方式</th><th className="px-3 py-2 text-left">备注</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-border last:border-0"><td className="px-3 py-2 tabular-nums">{row.occurredAt}</td><td className="px-3 py-2">{row.accountName}</td><td className={cn("px-3 py-2 text-right font-medium tabular-nums", row.tradeType === "income" ? "text-emerald-600" : row.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{row.tradeType === "expense" ? "-" : "+"}{formatMoney(row.amountMinor)}</td><td className="max-w-44 truncate px-3 py-2" title={row.counterparty}>{row.counterparty || "-"}</td><td className="max-w-36 truncate px-3 py-2" title={row.paymentChannel}>{row.paymentChannel || "-"}</td><td className="max-w-60 truncate px-3 py-2" title={row.remark}>{row.remark || "-"}</td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">该月份暂无匹配项目</p>}
+      {loading ? <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">正在读取明细</div> : error ? <p className="py-8 text-center text-sm text-destructive" role="alert">{error}</p> : rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="px-3 py-2 text-left">时间</th><th className="px-3 py-2 text-left">账户</th><th className="px-3 py-2 text-left">收支</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-left">备注</th><th className="px-3 py-2 text-left">交易对方</th><th className="px-3 py-2 text-left">支付方式</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-border last:border-0"><td className="px-3 py-2 tabular-nums">{row.occurredAt}</td><td className="px-3 py-2">{row.accountName}</td><td className="px-3 py-2">{tradeTypeLabels[row.tradeType]}</td><td className={cn("px-3 py-2 text-right font-medium tabular-nums", row.tradeType === "income" ? "text-emerald-600" : row.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{row.tradeType === "expense" ? "-" : "+"}{formatMoney(row.amountMinor)}</td><td className="max-w-60 truncate px-3 py-2" title={row.remark}>{row.remark || "-"}</td><td className="max-w-44 truncate px-3 py-2" title={row.counterparty}>{row.counterparty || "-"}</td><td className="max-w-36 truncate px-3 py-2" title={row.paymentChannel}>{row.paymentChannel || "-"}</td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">该月份暂无匹配项目</p>}
     </CardContent>
   </Card>;
+}
+
+function compareTransactionOrder(left: Transaction, right: Transaction): number {
+  const occurredAtOrder = left.occurredAt.localeCompare(right.occurredAt);
+  if (occurredAtOrder !== 0) return occurredAtOrder;
+  return right.id > left.id ? 1 : right.id < left.id ? -1 : 0;
 }
 
 function EmptyChart() {

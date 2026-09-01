@@ -42,6 +42,73 @@ describe("DateTimeInput", () => {
     expect(onChange).toHaveBeenLastCalledWith("2026-08-09 07:03:00");
   });
 
+  it("selects the numeric segment under the caret and the next segment after a separator", async () => {
+    render(<DateTimeInput value="2026-08-08 08:10:00" onChange={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" }) as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(6, 6);
+    fireEvent.click(input);
+    await waitFor(() => {
+      expect(input.selectionStart).toBe(5);
+      expect(input.selectionEnd).toBe(7);
+    });
+
+    input.setSelectionRange(10, 10);
+    fireEvent.click(input);
+    await waitFor(() => {
+      expect(input.selectionStart).toBe(11);
+      expect(input.selectionEnd).toBe(13);
+    });
+  });
+
+  it("selects each date and time segment when clicked", async () => {
+    render(<DateTimeInput value="2026-08-08 08:10:00" onChange={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" }) as HTMLInputElement;
+    const ranges = [[0, 4], [5, 7], [8, 10], [11, 13], [14, 16], [17, 19]];
+
+    for (const [start, end] of ranges) {
+      input.focus();
+      input.setSelectionRange(start, start);
+      fireEvent.click(input);
+      await waitFor(() => {
+        expect(input.selectionStart).toBe(start);
+        expect(input.selectionEnd).toBe(end);
+      });
+    }
+  });
+
+  it("selects an empty segment and the seconds segment at the end", async () => {
+    const view = render(<DateTimeInput value="2026-08-" onChange={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" }) as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(8, 8);
+    fireEvent.click(input);
+    await waitFor(() => {
+      expect(input.selectionStart).toBe(8);
+      expect(input.selectionEnd).toBe(8);
+    });
+
+    view.rerender(<DateTimeInput value="2026-08-08 08:10:00" onChange={vi.fn()} />);
+    input.focus();
+    input.setSelectionRange(19, 19);
+    fireEvent.click(input);
+    await waitFor(() => {
+      expect(input.selectionStart).toBe(17);
+      expect(input.selectionEnd).toBe(19);
+    });
+  });
+
+  it("reports invalid completed date and time values without changing the input", () => {
+    const onChange = vi.fn();
+    const onValidityChange = vi.fn();
+    render(<DateTimeInput value="2026-02-30 24:60:60" onChange={onChange} onValidityChange={onValidityChange} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    fireEvent.blur(input);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onValidityChange).toHaveBeenLastCalledWith("日期不符合实际月份");
+  });
+
   it("keeps the original compact cell style", () => {
     render(<DateTimeInput compact value="2026-08-08 08:10:00" onChange={vi.fn()} />);
     const input = screen.getByRole("textbox", { name: "交易时间" });

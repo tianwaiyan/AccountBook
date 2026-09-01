@@ -128,7 +128,10 @@ export class DemoTransactionRepository implements TransactionRepository {
     if (query.amountMaxMinor != null) result = result.filter((row) => Math.abs(row.amountMinor) <= query.amountMaxMinor!);
     if (!query.sortBy) return [...result];
     const direction = query.sortDirection === "asc" ? 1 : -1;
-    return [...result].sort((left, right) => direction * (query.sortBy === "amount" ? Math.abs(left.amountMinor) - Math.abs(right.amountMinor) : left.occurredAt.localeCompare(right.occurredAt)));
+    return [...result].sort((left, right) => {
+      const primary = query.sortBy === "amount" ? Math.abs(left.amountMinor) - Math.abs(right.amountMinor) : left.occurredAt.localeCompare(right.occurredAt);
+      return primary !== 0 ? direction * primary : right.id > left.id ? 1 : right.id < left.id ? -1 : 0;
+    });
   }
   async listAvailableMonths(): Promise<string[]> { return [...new Set(transactions.map((row) => row.occurredAt.slice(0, 7)))].sort().reverse(); }
   async get(id: string): Promise<Transaction | null> { return transactions.find((row) => row.id === id) ?? null; }
@@ -139,13 +142,13 @@ export class DemoTransactionRepository implements TransactionRepository {
   async commitImport(bookId: string, candidates: ImportCandidate[]): Promise<ImportCommitResult> {
     let inserted = 0;
     for (const candidate of candidates) {
-      const accountId = accounts.find((item) => item.bookId === bookId && item.name === candidate.accountName)?.id ?? accounts[0].id;
+      const accountId = accounts.find((item) => item.bookId === bookId && item.name.trim() === candidate.accountName.trim())?.id ?? accounts[0].id;
       const duplicate = transactions.some((row) => row.bookId === bookId
         && row.occurredAt === candidate.occurredAt
         && row.accountId === accountId
         && row.amountMinor === candidate.amountMinor
-        && row.paymentChannel === candidate.paymentChannel
-        && row.counterparty === candidate.counterparty);
+        && row.paymentChannel.trim() === candidate.paymentChannel.trim()
+        && row.counterparty.trim() === candidate.counterparty.trim());
       if (duplicate) continue;
       transactions.push(fromInput(crypto.randomUUID(), {
         occurredAt: candidate.occurredAt,

@@ -46,7 +46,7 @@ function placeholders(values: unknown[]): string {
 
 async function ensureAccount(database: PortableDatabaseClient, bookId: string, name: string): Promise<string> {
   const rows = await database.select<Array<{ id: string }>>(
-    "SELECT id FROM accounts WHERE book_id = ? AND name = ? LIMIT 1",
+    "SELECT id FROM accounts WHERE book_id = ? AND TRIM(name) = TRIM(?) LIMIT 1",
     [bookId, name],
   );
   if (rows[0]) return rows[0].id;
@@ -204,8 +204,8 @@ export class SqliteTransactionRepository implements TransactionRepository {
              AND occurred_at = ?
              AND account_id = ?
              AND amount_minor = ?
-             AND payment_channel = ?
-             AND counterparty = ?`,
+             AND TRIM(payment_channel) = ?
+             AND TRIM(counterparty) = ?`,
           [
             bookId,
             candidate.occurredAt,

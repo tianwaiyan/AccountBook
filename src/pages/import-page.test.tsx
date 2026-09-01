@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import type { ImportCandidate } from "@/types/domain";
 
 const { importService, backupService } = vi.hoisted(() => ({
@@ -19,6 +20,11 @@ const { importService, backupService } = vi.hoisted(() => ({
 vi.mock("@/services/import-registry", () => ({ importService, backupService }));
 
 import { ImportPage } from "@/pages/import-page";
+
+function ControlledImportPage({ initialHistory = [] }: { initialHistory?: ImportCandidate[] }) {
+  const [history, setHistory] = useState(initialHistory);
+  return <ImportPage onChanged={vi.fn()} excludedHistory={history} onExcludedHistoryChange={setHistory} />;
+}
 
 const candidate: ImportCandidate = {
   rowId: "candidate-1",
@@ -64,7 +70,7 @@ describe("ImportPage filtering", () => {
   });
 
   async function openPreview() {
-    const view = render(<ImportPage onChanged={vi.fn()} />);
+    const view = render(<ControlledImportPage />);
     const fileInput = view.container.querySelector('input[type="file"]');
     if (!fileInput) throw new Error("file input not found");
     fireEvent.change(fileInput, { target: { files: [new File(["csv"], "alipay.csv", { type: "text/csv" })] } });

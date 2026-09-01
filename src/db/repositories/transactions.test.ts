@@ -102,8 +102,8 @@ describe("SqliteTransactionRepository.commitImport", () => {
     expect(String(select.mock.calls[1][0])).toContain("occurred_at = ?");
     expect(String(select.mock.calls[1][0])).toContain("account_id = ?");
     expect(String(select.mock.calls[1][0])).toContain("amount_minor = ?");
-    expect(String(select.mock.calls[1][0])).toContain("payment_channel = ?");
-    expect(String(select.mock.calls[1][0])).toContain("counterparty = ?");
+    expect(String(select.mock.calls[1][0])).toContain("TRIM(payment_channel) = ?");
+    expect(String(select.mock.calls[1][0])).toContain("TRIM(counterparty) = ?");
     expect(String(select.mock.calls[1][0])).not.toContain("import_fingerprint");
     expect(select.mock.calls[1][1]).toEqual([
       "book-default",
@@ -127,6 +127,20 @@ describe("SqliteTransactionRepository.commitImport", () => {
 
     expect(result).toEqual({ inserted: 1, skipped: 0 });
     expect(execute.mock.calls[1][1]).toEqual(expect.arrayContaining([importCandidate.fingerprint, 2]));
+  });
+
+  it("allows a matching soft-deleted row to be imported again", async () => {
+    const execute = vi.fn().mockResolvedValue({ rowsAffected: 1 });
+    const select = vi.fn()
+      .mockResolvedValueOnce([{ id: "account-cash" }])
+      .mockResolvedValueOnce([{ count: 0 }]);
+    vi.mocked(getDatabase).mockResolvedValue({ execute, select } as never);
+
+    const result = await new SqliteTransactionRepository().commitImport("book-default", [importCandidate]);
+
+    expect(result).toEqual({ inserted: 1, skipped: 0 });
+    expect(String(select.mock.calls[1][0])).toContain("deleted_at IS NULL");
+    expect(execute.mock.calls.map(([sql]) => String(sql).trim().split(/\s+/)[0])).toEqual(["BEGIN", "INSERT", "COMMIT"]);
   });
 
   it("skips duplicate candidates encountered later in the same batch", async () => {

@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,11 +14,11 @@ import { transactionService } from "@/services/registry";
 import type { ReferenceData } from "@/hooks/use-reference-data";
 import type { StatusCode, TradeType } from "@/types/domain";
 import { DEFAULT_BOOK_ID, statusLabels, tradeTypeLabels } from "@/types/domain";
-import { formatLocalDateTime } from "@/utils/date";
+import { formatLocalDateTime, isValidDateTime } from "@/utils/date";
 import { signedMinor } from "@/utils/money";
 
 const schema = z.object({
-  occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, "请输入 YYYY-MM-DD HH:MM:SS"),
+  occurredAt: z.string().refine(isValidDateTime, "请输入合法的 YYYY-MM-DD HH:MM:SS"),
   accountId: z.string().min(1, "请选择账户"),
   tradeType: z.enum(["expense", "refund", "income"]),
   amount: z.string().min(1, "请输入金额"),
@@ -56,6 +57,36 @@ export function QuickEntryDialog({
   onOpenChange: (open: boolean) => void;
   referenceData: ReferenceData;
   onSaved: () => void;
+  initial?: Partial<FormValues>;
+}) {
+  const [tradeType, setTradeType] = useState<TradeType>(initial?.tradeType ?? "expense");
+
+  useEffect(() => {
+    if (open) setTradeType(initial?.tradeType ?? "expense");
+  }, [initial?.tradeType, open]);
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none">
+      <DialogHeader>
+        <DialogTitle>快速记账</DialogTitle>
+        <DialogDescription>{tradeTypeLabels[tradeType]}</DialogDescription>
+      </DialogHeader>
+      <QuickEntryForm referenceData={referenceData} onSaved={onSaved} onCancel={() => onOpenChange(false)} onTradeTypeChange={setTradeType} initial={initial} />
+    </DialogContent>
+  </Dialog>;
+}
+
+export function QuickEntryForm({
+  referenceData,
+  onSaved,
+  onCancel,
+  onTradeTypeChange,
+  initial,
+}: {
+  referenceData: ReferenceData;
+  onSaved: () => void;
+  onCancel: () => void;
+  onTradeTypeChange?: (tradeType: TradeType) => void;
   initial?: Partial<FormValues>;
 }) {
   const form = useForm<FormValues>({
@@ -120,24 +151,17 @@ export function QuickEntryDialog({
         counterparty: "",
         paymentChannel: values.paymentChannel,
       });
-      onOpenChange(false);
+      onCancel();
       onSaved();
     } catch (reason) {
       form.setError("root", { message: reason instanceof Error ? reason.message : String(reason) });
     }
   });
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none">
-        <DialogHeader>
-          <DialogTitle>快速记账</DialogTitle>
-          <DialogDescription>{tradeTypeLabels[tradeType as TradeType]}</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
+  return <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="交易时间" error={form.formState.errors.occurredAt?.message}>
-              <Controller name="occurredAt" control={form.control} render={({ field }) => <DateTimeInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} />} />
+              <Controller name="occurredAt" control={form.control} render={({ field }) => <DateTimeInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} onValidityChange={(message) => { if (message) form.setError("occurredAt", { message }); else form.clearErrors("occurredAt"); }} />} />
             </Field>
             <Field label="账户" error={form.formState.errors.accountId?.message}>
               <Controller name="accountId" control={form.control} render={({ field }) => (
@@ -149,7 +173,7 @@ export function QuickEntryDialog({
             </Field>
             <Field label="收支" error={form.formState.errors.tradeType?.message}>
               <Controller name="tradeType" control={form.control} render={({ field }) => (
-                <Select value={field.value} onValueChange={(value) => { field.onChange(value); form.setValue("categoryId", ""); form.setValue("tagId", ""); form.setValue("statusCode", ""); }}>
+                <Select value={field.value} onValueChange={(value) => { field.onChange(value); onTradeTypeChange?.(value as TradeType); form.setValue("categoryId", ""); form.setValue("tagId", ""); form.setValue("statusCode", ""); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(tradeTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                 </Select>
@@ -186,13 +210,10 @@ export function QuickEntryDialog({
           <Field label="备注"><Textarea {...form.register("remark")} rows={2} /></Field>
           {form.formState.errors.root?.message && <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}><Save className="size-4" />保存</Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {

@@ -19,14 +19,16 @@ const sourceLabels: Record<ImportSource, string> = {
 
 const MANUAL_EXCLUSION_REASON = "手动过滤";
 
-export function ImportPage({ onChanged }: { onChanged: () => void }) {
+export function ImportPage({ onChanged, excludedHistory: controlledExcludedHistory, onExcludedHistoryChange: controlledHistoryChange }: { onChanged: () => void; excludedHistory?: ImportCandidate[]; onExcludedHistoryChange?: React.Dispatch<React.SetStateAction<ImportCandidate[]>> }) {
   const [source, setSource] = useState<ImportSource>("alipay");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [excludedHistory, setExcludedHistory] = useState<ImportCandidate[]>([]);
+  const [localExcludedHistory, setLocalExcludedHistory] = useState<ImportCandidate[]>([]);
+  const excludedHistory = controlledExcludedHistory ?? localExcludedHistory;
+  const setExcludedHistory = controlledHistoryChange ?? setLocalExcludedHistory;
 
   const selectFile = async (file: File | undefined) => {
     if (!file) return;
@@ -34,7 +36,7 @@ export function ImportPage({ onChanged }: { onChanged: () => void }) {
     try {
       const next = await importService.preview(file, source, DEFAULT_BOOK_ID);
       setPreview(next);
-      setExcludedHistory((current) => [...current, ...next.excluded]);
+      setExcludedHistory((current) => [...current, ...next.excluded.filter((row) => !current.some((item) => item.rowId === row.rowId))]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       setPreview(null);
@@ -104,7 +106,7 @@ export function ImportPage({ onChanged }: { onChanged: () => void }) {
     {preview && <Card><CardHeader><CardTitle>导入预览</CardTitle><div className="flex gap-2"><Badge>{preview.candidates.length} 条待导入</Badge><Badge tone={preview.excluded.length ? "warning" : "neutral"}>{preview.excluded.length} 条过滤</Badge></div></CardHeader><CardContent className="space-y-4"><PreviewSection title="待导入" rows={preview.candidates} excluded={false} onToggle={toggleFilter} /><PreviewSection title="过滤清单" rows={preview.excluded} excluded onToggle={toggleFilter} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPreview(null)}>取消</Button><Button onClick={commit} disabled={busy || preview.candidates.length === 0}><Upload className="size-4" />导入 {preview.candidates.length} 条</Button></div></CardContent></Card>}
 
     <section className="grid gap-4 lg:grid-cols-2"><Card><CardHeader><CardTitle>数据导出</CardTitle></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={exportCsv} disabled={busy}><Download className="size-4" />导出标准 CSV</Button><Button variant="outline" onClick={createBackup} disabled={busy}><Archive className="size-4" />创建完整备份</Button></CardContent></Card><Card><CardHeader><CardTitle>恢复备份</CardTitle></CardHeader><CardContent><Button variant="outline" onClick={() => void backupService.restoreBackup()} disabled={busy}><RefreshCcw className="size-4" />恢复完整备份</Button></CardContent></Card></section>
-    {excludedHistory.length > 0 && <Card><CardHeader><CardTitle>本次会话过滤记录</CardTitle><Button size="sm" variant="ghost" onClick={() => setExcludedHistory([])}>清除</Button></CardHeader><CardContent className="space-y-2">{excludedHistory.slice(-50).map((row) => <div key={row.rowId} className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0"><span className="truncate">{row.occurredAt} · {row.remark || row.sourceCategory}</span><Badge tone="warning">{row.excludedReason}</Badge></div>)}</CardContent></Card>}
+    {excludedHistory.length > 0 && <Card><CardHeader><CardTitle>本次会话过滤记录</CardTitle><Button size="sm" variant="ghost" onClick={() => setExcludedHistory([])}>清除</Button></CardHeader><CardContent className="space-y-2">{excludedHistory.map((row) => <div key={row.rowId} className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0"><span className="truncate">{row.occurredAt} · {row.remark || row.sourceCategory}</span><Badge tone="warning">{row.excludedReason}</Badge></div>)}</CardContent></Card>}
   </div>;
 }
 
