@@ -1,17 +1,15 @@
-import { Fragment, memo, useRef } from "react";
-import type { FocusEvent, KeyboardEvent } from "react";
+import { forwardRef, memo, useRef } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import { cn } from "@/utils/cn";
 
-const SEGMENTS = [
-  { label: "年", length: 4, separator: "-", width: "w-9", wideWidth: "w-12", singleDigitMax: null },
-  { label: "月", length: 2, separator: "-", width: "w-5", wideWidth: "w-7", singleDigitMax: 1 },
-  { label: "日", length: 2, separator: " ", width: "w-5", wideWidth: "w-7", singleDigitMax: 3 },
-  { label: "时", length: 2, separator: ":", width: "w-5", wideWidth: "w-7", singleDigitMax: 2 },
-  { label: "分", length: 2, separator: ":", width: "w-5", wideWidth: "w-7", singleDigitMax: 5 },
-  { label: "秒", length: 2, separator: "", width: "w-5", wideWidth: "w-7", singleDigitMax: 5 },
-] as const;
+const SEGMENT_LENGTHS = [4, 2, 2, 2, 2, 2] as const;
+const SEPARATORS = ["-", "-", " ", ":", ":", ""] as const;
+const ADVANCE_DIGIT_COUNTS = new Set([4, 6, 8, 10, 12]);
 
 type DateTimeParts = [string, string, string, string, string, string];
+
+const FORM_INPUT_CLASS = "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none transition-shadow placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+const CELL_INPUT_CLASS = "h-8 w-full min-w-0 rounded-none border border-transparent bg-white px-1 text-sm outline-none transition-shadow focus-visible:border-input focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 export interface DateTimeInputProps {
   value: string;
@@ -23,84 +21,99 @@ export interface DateTimeInputProps {
   ariaLabel?: string;
 }
 
-export const DateTimeInput = memo(function DateTimeInput({ value, onChange, onBlur, className, compact = false, disabled = false, ariaLabel = "交易时间" }: DateTimeInputProps) {
-  const parts = splitDateTime(value);
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+export const DateTimeInput = memo(forwardRef<HTMLInputElement, DateTimeInputProps>(function DateTimeInput({ value, onChange, onBlur, className, compact = false, disabled = false, ariaLabel = "交易时间" }, forwardedRef) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const updatePart = (index: number, rawValue: string) => {
-    const nextValue = rawValue.replace(/\D/g, "").slice(0, SEGMENTS[index].length);
-    const next = copyParts(parts);
-    next[index] = nextValue;
-    if (shouldAdvance(index, nextValue)) {
-      next[index] = padSegment(nextValue, SEGMENTS[index].length);
-      onChange(composeDateTime(next));
-      inputRefs.current[index + 1]?.focus();
-      return;
-    }
-    onChange(composeDateTime(next));
+  const assignRef = (element: HTMLInputElement | null) => {
+    inputRef.current = element;
+    if (typeof forwardedRef === "function") forwardedRef(element);
+    else if (forwardedRef) forwardedRef.current = element;
   };
 
-  const padPartOnBlur = (index: number) => {
-    const current = parts[index];
-    if (!current || current.length >= SEGMENTS[index].length) return;
-    const next = copyParts(parts);
-    next[index] = padSegment(current, SEGMENTS[index].length);
-    onChange(composeDateTime(next));
+  const scheduleCaret = (position: number) => {
+    const update = () => {
+      const input = inputRef.current;
+      if (!input || document.activeElement !== input) return;
+      input.setSelectionRange(position, position);
+    };
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(update);
+    else window.setTimeout(update, 0);
   };
 
-  const handleContainerBlur = (event: FocusEvent<HTMLDivElement>) => {
-    const relatedTarget = event.relatedTarget;
-    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
-    const normalized = normalizeDateTimeParts(parts);
-    if (composeDateTime(normalized) !== composeDateTime(parts)) onChange(composeDateTime(normalized));
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.currentTarget.value;
+    const caret = event.currentTarget.selectionStart ?? rawValue.length;
+    const nextValue = formatPartialDateTime(rawValue);
+    onChange(nextValue);
+    scheduleCaret(getCaretPosition(rawValue, nextValue, caret));
+  };
+
+  const handleBlur = () => {
+    const normalized = composeDateTime(normalizeDateTimeParts(splitDateTime(value)));
+    if (normalized !== value) onChange(normalized);
     onBlur?.();
   };
 
-  const handleKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
-    if (event.key === "ArrowRight" && input.selectionStart === input.value.length && index < SEGMENTS.length - 1) {
-      event.preventDefault();
-      inputRefs.current[index + 1]?.focus();
-    } else if (event.key === "ArrowLeft" && input.selectionStart === 0 && index > 0) {
-      event.preventDefault();
-      inputRefs.current[index - 1]?.focus();
-    } else if (event.key === "Backspace" && !input.value && input.selectionStart === 0 && index > 0) {
-      event.preventDefault();
-      inputRefs.current[index - 1]?.focus();
+    if (event.key === "-" || event.key === ":" || event.key === " ") {
+      const caret = input.selectionStart ?? 0;
+      if (caret === input.selectionEnd && input.value[caret] === event.key) {
+        event.preventDefault();
+        input.setSelectionRange(caret + 1, caret + 1);
+      }
     }
   };
 
-  return <div role="group" aria-label={ariaLabel} className={cn("flex min-w-0 items-center whitespace-nowrap", className)} onBlurCapture={handleContainerBlur}>
-    {SEGMENTS.map((segment, index) => <Fragment key={segment.label}>
-      <input
-        ref={(element) => { inputRefs.current[index] = element; }}
-        className={cn("rounded-md border border-input bg-background px-0 text-center outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", compact ? "h-8 text-xs" : "h-9 text-sm", compact ? segment.width : segment.wideWidth)}
-        type="text"
-        inputMode="numeric"
-        maxLength={segment.length}
-        placeholder={"0".repeat(segment.length)}
-        aria-label={`${ariaLabel}${segment.label}`}
-        value={parts[index]}
-        onChange={(event) => updatePart(index, event.target.value)}
-        onBlur={() => padPartOnBlur(index)}
-        onFocus={(event) => event.currentTarget.select()}
-        onKeyDown={(event) => handleKeyDown(index, event)}
-        disabled={disabled}
-      />
-      {segment.separator && <span className="px-0.5 text-muted-foreground" aria-hidden="true">{segment.separator}</span>}
-    </Fragment>)}
-  </div>;
-});
+  return <input ref={assignRef} className={cn(compact ? CELL_INPUT_CLASS : FORM_INPUT_CLASS, className)} type="text" inputMode="numeric" aria-label={ariaLabel} value={value} onChange={handleChange} onBlur={handleBlur} onKeyDown={handleKeyDown} disabled={disabled} />;
+}));
+
+DateTimeInput.displayName = "DateTimeInput";
 
 function splitDateTime(value: string): DateTimeParts {
   const normalized = value.trim().replace("T", " ");
-  const structured = normalized.match(/^(\d*)-(\d*)-(\d*)\s+(\d*):(\d*):(\d*)$/);
-  const values = structured ? structured.slice(1) : normalized.match(/\d+/g) ?? [];
-  return SEGMENTS.map((segment, index) => values[index]?.slice(0, segment.length) ?? "") as DateTimeParts;
+  if (!normalized) return ["", "", "", "", "", ""];
+
+  if (/[-\s:]/.test(normalized)) {
+    const [datePart = "", timePart = ""] = normalized.split(/\s+/, 2);
+    const dateValues = datePart.split("-");
+    const timeValues = timePart.split(":");
+    return [
+      digitsOnly(dateValues[0] ?? "").slice(0, 4),
+      digitsOnly(dateValues[1] ?? "").slice(0, 2),
+      digitsOnly(dateValues[2] ?? "").slice(0, 2),
+      digitsOnly(timeValues[0] ?? "").slice(0, 2),
+      digitsOnly(timeValues[1] ?? "").slice(0, 2),
+      digitsOnly(timeValues[2] ?? "").slice(0, 2),
+    ];
+  }
+
+  let offset = 0;
+  const digits = digitsOnly(normalized).slice(0, 14);
+  return SEGMENT_LENGTHS.map((length) => {
+    const part = digits.slice(offset, offset + length);
+    offset += length;
+    return part;
+  }) as DateTimeParts;
 }
 
-function copyParts(parts: DateTimeParts): DateTimeParts {
-  return [...parts] as DateTimeParts;
+function formatPartialDateTime(value: string): string {
+  return composePartialDateTime(splitDateTime(value));
+}
+
+function composePartialDateTime(parts: DateTimeParts): string {
+  let result = "";
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (index === 0) {
+      result = part;
+      continue;
+    }
+    const previous = parts[index - 1];
+    if (previous.length === SEGMENT_LENGTHS[index - 1] || part.length > 0) result += SEPARATORS[index - 1] + part;
+    else break;
+  }
+  return result;
 }
 
 function composeDateTime(parts: DateTimeParts): string {
@@ -108,14 +121,24 @@ function composeDateTime(parts: DateTimeParts): string {
 }
 
 function normalizeDateTimeParts(parts: DateTimeParts): DateTimeParts {
-  return SEGMENTS.map((segment, index) => padSegment(parts[index], segment.length)) as DateTimeParts;
+  return SEGMENT_LENGTHS.map((length, index) => parts[index].padStart(length, "0").slice(-length)) as DateTimeParts;
 }
 
-function padSegment(value: string, length: number): string {
-  return value.padStart(length, "0").slice(-length);
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
 }
 
-function shouldAdvance(index: number, value: string): boolean {
-  if (value.length >= SEGMENTS[index].length) return true;
-  return value.length === 1 && index > 0 && SEGMENTS[index].singleDigitMax !== null && Number(value) > SEGMENTS[index].singleDigitMax;
+function getCaretPosition(rawValue: string, formattedValue: string, rawCaret: number): number {
+  const digitsBeforeCaret = digitsOnly(rawValue.slice(0, rawCaret)).length;
+  let seen = 0;
+  for (let index = 0; index < formattedValue.length; index += 1) {
+    if (!/\d/.test(formattedValue[index])) continue;
+    seen += 1;
+    if (seen === digitsBeforeCaret) {
+      const nextPosition = index + 1;
+      if (ADVANCE_DIGIT_COUNTS.has(digitsBeforeCaret) && formattedValue[nextPosition]) return nextPosition + 1;
+      return nextPosition;
+    }
+  }
+  return formattedValue.length;
 }

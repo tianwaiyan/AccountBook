@@ -95,21 +95,17 @@ describe("TransactionsPage editing", () => {
     expect(remarkInput).toHaveValue("早餐店加咖啡");
   });
 
-  it("keeps mobile card inputs mounted while editing a draft", async () => {
+  it("keeps the mobile date input mounted while editing a draft", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
     await enterEditMode();
 
-    const occurredAtGroups = screen.getAllByRole("group", { name: "交易时间" });
-    const mobileOccurredAtGroup = occurredAtGroups[occurredAtGroups.length - 1];
-    const mobileHourInput = mobileOccurredAtGroup.querySelector('[aria-label="交易时间时"]') as HTMLInputElement;
-    const mobileMinuteInput = mobileOccurredAtGroup.querySelector('[aria-label="交易时间分"]') as HTMLInputElement;
-    mobileHourInput.focus();
-    fireEvent.change(mobileHourInput, { target: { value: "11" } });
-    expect(mobileHourInput).toHaveValue("11");
-    expect(mobileMinuteInput).toHaveFocus();
-    fireEvent.change(mobileMinuteInput, { target: { value: "12" } });
-    expect(mobileMinuteInput).toHaveValue("12");
+    const occurredAtInputs = screen.getAllByRole("textbox", { name: "交易时间" });
+    expect(occurredAtInputs).toHaveLength(2);
+    const mobileOccurredAtInput = occurredAtInputs[occurredAtInputs.length - 1];
+    mobileOccurredAtInput.focus();
+    fireEvent.change(mobileOccurredAtInput, { target: { value: "2026-08-08 11:12:00" } });
+    expect(mobileOccurredAtInput).toHaveValue("2026-08-08 11:12:00");
   });
 
   it("keeps amount text editable and rounds only when the draft is saved", async () => {
@@ -140,11 +136,10 @@ describe("TransactionsPage editing", () => {
     await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
     await enterEditMode();
 
-    const occurredAtGroups = screen.getAllByRole("group", { name: "交易时间" });
-    const desktopOccurredAtGroup = occurredAtGroups[0];
-    const desktopOccurredAtInput = desktopOccurredAtGroup.querySelector('[aria-label="交易时间年"]') as HTMLInputElement;
+    const occurredAtInputs = screen.getAllByRole("textbox", { name: "交易时间" });
+    const desktopOccurredAtInput = occurredAtInputs[0];
     const desktopRemarkInput = screen.getAllByDisplayValue("早餐")[0];
-    const mobileOccurredAtGroup = occurredAtGroups.at(-1);
+    const mobileOccurredAtInput = occurredAtInputs.at(-1);
     const mobileRemarkInput = screen.getAllByDisplayValue("早餐").at(-1);
     const desktopInputs = [
       desktopOccurredAtInput,
@@ -158,8 +153,8 @@ describe("TransactionsPage editing", () => {
       expect(input).toHaveClass("rounded-md", "border", "border-transparent", "bg-white", "px-2", "py-1", "focus-visible:border-input", "focus-visible:ring-2", "focus-visible:ring-ring");
       expect(input).not.toHaveClass("border-input");
     });
-    expect(desktopOccurredAtInput).toHaveClass("rounded-md", "border", "border-input", "bg-background", "px-0");
-    expect(mobileOccurredAtGroup?.querySelector('[aria-label="交易时间年"]')).toHaveClass("rounded-md", "border-input", "bg-background", "px-0");
+    expect(desktopOccurredAtInput).toHaveClass("rounded-md", "border", "border-transparent", "bg-white", "px-2");
+    expect(mobileOccurredAtInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
     expect(mobileRemarkInput).toHaveClass("rounded-none", "border-transparent", "bg-white", "px-1");
   });
 
@@ -476,7 +471,7 @@ describe("TransactionsPage editing", () => {
 
   it("does not let a menu trigger start a column drag", async () => {
     render(<TransactionsPage referenceData={referenceData} refreshVersion={0} onChanged={vi.fn()} onDirtyChange={vi.fn()} />);
-    await waitFor(() => expect(transactionRepository.list).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTitle("时间排序")).toBeInTheDocument());
 
     const timeTrigger = screen.getByTitle("时间排序");
     const timeHeader = timeTrigger.closest("th");

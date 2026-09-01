@@ -1,57 +1,52 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 
 describe("DateTimeInput", () => {
   afterEach(cleanup);
 
-  it("moves to the next segment after a segment is complete", () => {
-    const onChange = vi.fn();
-    render(<DateTimeInput value="2026-08-08 08:10:00" onChange={onChange} />);
+  it("keeps the original single-input structure and styles", () => {
+    render(<DateTimeInput value="2026-08-08 08:10:00" onChange={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" }) as HTMLInputElement;
 
-    const year = screen.getByLabelText("交易时间年");
-    const month = screen.getByLabelText("交易时间月");
-    year.focus();
-    fireEvent.change(year, { target: { value: "2027" } });
-
-    expect(onChange).toHaveBeenLastCalledWith("2027-08-08 08:10:00");
-    expect(month).toHaveFocus();
+    expect(screen.queryByRole("group")).toBeNull();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(input).toHaveClass("flex", "h-9", "w-full", "rounded-md", "border-input", "bg-background", "px-3");
   });
 
-  it("pads a one-digit segment when it advances", () => {
-    const onChange = vi.fn();
-    render(<DateTimeInput value="2026-08-08 08:10:00" onChange={onChange} />);
+  it("inserts the next separator and moves the caret after a completed segment", async () => {
+    let value = "";
+    const onChange = vi.fn((next: string) => { value = next; view.rerender(<DateTimeInput value={value} onChange={onChange} />); });
+    const view = render(<DateTimeInput value={value} onChange={onChange} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" }) as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: "2026", selectionStart: 4, selectionEnd: 4 } });
 
-    const month = screen.getByLabelText("交易时间月");
-    const day = screen.getByLabelText("交易时间日");
-    month.focus();
-    fireEvent.change(month, { target: { value: "8" } });
-
-    expect(onChange).toHaveBeenLastCalledWith("2026-08-08 08:10:00");
-    expect(day).toHaveFocus();
+    expect(onChange).toHaveBeenLastCalledWith("2026-");
+    await waitFor(() => expect(input.selectionStart).toBe(5));
   });
 
-  it("fills every empty segment with zero when the control loses focus", () => {
+  it("accepts a compact pasted value and formats all separators", () => {
     const onChange = vi.fn();
     render(<DateTimeInput value="" onChange={onChange} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "交易时间" }), { target: { value: "20260808081000" } });
 
-    fireEvent.blur(screen.getByLabelText("交易时间年"));
-
-    expect(onChange).toHaveBeenLastCalledWith("0000-00-00 00:00:00");
+    expect(onChange).toHaveBeenLastCalledWith("2026-08-08 08:10:00");
   });
 
-  it("keeps empty segments in place while editing and pads the active segment on blur", () => {
+  it("pads incomplete and empty segments with zero on blur", () => {
     const onChange = vi.fn();
-    render(<DateTimeInput value="2026--08 08:10:00" onChange={onChange} />);
+    render(<DateTimeInput value="2026-8-9 7:3" onChange={onChange} />);
+    fireEvent.blur(screen.getByRole("textbox", { name: "交易时间" }));
 
-    const month = screen.getByLabelText("交易时间月");
-    const day = screen.getByLabelText("交易时间日");
-    expect(month).toHaveValue("");
-    expect(day).toHaveValue("08");
+    expect(onChange).toHaveBeenLastCalledWith("2026-08-09 07:03:00");
+  });
 
-    fireEvent.change(month, { target: { value: "9" } });
-    fireEvent.blur(month, { relatedTarget: day });
+  it("keeps the original compact cell style", () => {
+    render(<DateTimeInput compact value="2026-08-08 08:10:00" onChange={vi.fn()} />);
+    const input = screen.getByRole("textbox", { name: "交易时间" });
 
-    expect(onChange).toHaveBeenLastCalledWith("2026-09-08 08:10:00");
+    expect(input).toHaveClass("h-8", "w-full", "rounded-none", "border-transparent", "bg-white", "px-1");
+    expect(input).not.toHaveClass("border-input", "bg-background", "px-3");
   });
 });

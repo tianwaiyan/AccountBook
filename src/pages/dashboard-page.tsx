@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, CircleDollarSign, Minus, Plus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CircleDollarSign, Minus, Plus, X } from "lucide-react";
 import {
   CartesianGrid,
   Cell,
@@ -19,21 +19,32 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ReferenceData } from "@/hooks/use-reference-data";
-import { analyticsRepository } from "@/services/registry";
+import { analyticsRepository, transactionRepository } from "@/services/registry";
 import type {
   ChartDatum,
   MonthSummary,
   MonthlyTrendDatum,
   TrackingRecord,
+  Transaction,
   YearlyCategoryDatum,
 } from "@/types/domain";
-import { DEFAULT_BOOK_ID, statusLabels } from "@/types/domain";
+import { DEFAULT_BOOK_ID, statusLabels, type TradeType } from "@/types/domain";
 import { currentYearMonth, monthLabel } from "@/utils/date";
 import { formatMoney, minorToYuan } from "@/utils/money";
 import { cn } from "@/utils/cn";
 import { clampTrendVisibleMonths, getTrendAxisTicks, getTrendDomainMaximum, getTrendVisibleRange, toTrendPoints } from "@/utils/trend";
 
 const COLORS = ["#2563eb", "#0f766e", "#dc2626", "#ca8a04", "#7c3aed", "#0891b2", "#db2777", "#4d7c0f"];
+const PERSONAL_EXCLUDED_SYSTEM_KEYS = new Set(["public_expense", "reimbursement", "pass_through_expense", "pass_through_income"]);
+
+type PieDimension = "category" | "incomeTag" | "expenseTag";
+
+interface PieSelection {
+  dimension: PieDimension;
+  title: string;
+  name: string;
+  month: string;
+}
 
 interface DashboardData {
   summary: MonthSummary;
@@ -51,11 +62,19 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pieSelection, setPieSelection] = useState<PieSelection | null>(null);
+  const [pieDetailRows, setPieDetailRows] = useState<Transaction[]>([]);
+  const [pieDetailLoading, setPieDetailLoading] = useState(false);
+  const [pieDetailError, setPieDetailError] = useState<string | null>(null);
   const selectedYear = selectedMonth.slice(0, 4);
 
   useEffect(() => {
     if (referenceData.months.length && !referenceData.months.includes(selectedMonth)) setSelectedMonth(referenceData.months[0]);
   }, [referenceData.months, selectedMonth]);
+
+  useEffect(() => {
+    setPieSelection(null);
+  }, [selectedMonth, refreshVersion]);
 
   useEffect(() => {
     let active = true;
@@ -73,6 +92,43 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
     }).catch((reason) => active && setError(reason instanceof Error ? reason.message : String(reason)));
     return () => { active = false; };
   }, [selectedMonth, selectedYear, refreshVersion]);
+
+  useEffect(() => {
+    if (!pieSelection || pieSelection.month !== selectedMonth) {
+      setPieDetailRows([]);
+      setPieDetailLoading(false);
+      setPieDetailError(null);
+      return;
+    }
+    let active = true;
+    const tradeTypes: TradeType[] = pieSelection.dimension === "incomeTag" ? ["income"] : ["expense", "refund"];
+    setPieDetailRows([]);
+    setPieDetailLoading(true);
+    setPieDetailError(null);
+    transactionRepository.list({
+      bookId: DEFAULT_BOOK_ID,
+      yearMonth: selectedMonth,
+      tradeTypes,
+      sortBy: "occurredAt",
+      sortDirection: "asc",
+    }).then((rows) => {
+      if (!active) return;
+      const field = pieSelection.dimension === "category" ? "categoryName" : "tagName";
+      setPieDetailRows(rows.filter((row) => !PERSONAL_EXCLUDED_SYSTEM_KEYS.has(row.categorySystemKey ?? "") && row[field] === pieSelection.name));
+      setPieDetailLoading(false);
+    }).catch((reason) => {
+      if (!active) return;
+      setPieDetailError(reason instanceof Error ? reason.message : String(reason));
+      setPieDetailLoading(false);
+    });
+    return () => { active = false; };
+  }, [pieSelection, selectedMonth]);
+
+  const selectPie = (dimension: PieDimension, title: string, name: string) => {
+    setPieSelection((current) => current?.month === selectedMonth && current.dimension === dimension && current.name === name
+      ? null
+      : { dimension, title, name, month: selectedMonth });
+  };
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState />;
@@ -93,10 +149,12 @@ export function DashboardPage({ referenceData, refreshVersion }: { referenceData
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <PiePanel title="支出分类" data={data.categories} />
-        <PiePanel title="收入标签" data={data.incomeTags} />
-        <PiePanel title="支出标签" data={data.expenseTags} />
+        <PiePanel title="支出分类" data={data.categories} onSelect={(name) => selectPie("category", "支出分类", name)} />
+        <PiePanel title="收入标签" data={data.incomeTags} onSelect={(name) => selectPie("incomeTag", "收入标签", name)} />
+        <PiePanel title="支出标签" data={data.expenseTags} onSelect={(name) => selectPie("expenseTag", "支出标签", name)} />
       </section>
+
+      {pieSelection?.month === selectedMonth && <PieDetailPanel selection={pieSelection} rows={pieDetailRows} loading={pieDetailLoading} error={pieDetailError} onClose={() => setPieSelection(null)} />}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SmallMetric label="已垫付公费" value={data.summary.pendingReimbursementMinor} warning />
@@ -255,19 +313,31 @@ function formatTrendAxisValue(value: number) {
   return String(Math.round(value));
 }
 
-function PiePanel({ title, data }: { title: string; data: ChartDatum[] }) {
+function PiePanel({ title, data, onSelect }: { title: string; data: ChartDatum[]; onSelect: (name: string) => void }) {
   const chartData = useMemo(() => data.map((item) => ({ ...item, yuan: minorToYuan(item.value) })), [data]);
   const activeShape = (props: PieSectorDataItem) => {
     const outerRadius = Number(props.outerRadius ?? 0);
     return <Sector {...props} outerRadius={outerRadius + 8} stroke="#ffffff" strokeWidth={1.5} />;
   };
-  return <ChartPanel title={title}>{data.length ? <ResponsiveContainer width="100%" height={280}><PieChart><Pie data={chartData} dataKey="yuan" nameKey="name" innerRadius={42} outerRadius={102} paddingAngle={0.4} labelLine={false} activeShape={activeShape} label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
+  return <ChartPanel title={title}>{data.length ? <ResponsiveContainer width="100%" height={280}><PieChart><Pie data={chartData} dataKey="yuan" nameKey="name" innerRadius={42} outerRadius={102} paddingAngle={0.4} labelLine={false} activeShape={activeShape} onClick={(entry) => { const name = (entry as { name?: unknown } | undefined)?.name; if (typeof name === "string") onSelect(name); }} label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
     if (Number(percent) < 0.035) return null;
     const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.57;
     const x = Number(cx) + radius * Math.cos(-Number(midAngle) * Math.PI / 180);
     const y = Number(cy) + radius * Math.sin(-Number(midAngle) * Math.PI / 180);
     return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={600} style={{ pointerEvents: "none" }}><tspan x={x} dy="-0.45em">{String(name)}</tspan><tspan x={x} dy="1.15em">{(Number(percent) * 100).toFixed(1)}%</tspan></text>;
-  }}>{data.map((item, index) => <Cell key={item.name} fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={0.5} />)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value) * 100)} /></PieChart></ResponsiveContainer> : <EmptyChart />}</ChartPanel>;
+  }}>{data.map((item, index) => <Cell key={item.name} data-pie-slice={item.name} className="cursor-pointer" fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={0.5} />)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value) * 100)} /></PieChart></ResponsiveContainer> : <EmptyChart />}</ChartPanel>;
+}
+
+function PieDetailPanel({ selection, rows, loading, error, onClose }: { selection: PieSelection; rows: Transaction[]; loading: boolean; error: string | null; onClose: () => void }) {
+  return <Card data-testid="pie-detail-panel">
+    <CardHeader>
+      <div className="flex min-w-0 items-center gap-2"><CardTitle className="truncate">{monthLabel(selection.month)} · {selection.title}：{selection.name}</CardTitle><Badge tone={rows.length ? "neutral" : "warning"}>{loading ? "..." : rows.length}</Badge></div>
+      <Button size="icon" variant="ghost" title="关闭明细" aria-label="关闭扇形明细" onClick={onClose}><X className="size-4" /></Button>
+    </CardHeader>
+    <CardContent>
+      {loading ? <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">正在读取明细</div> : error ? <p className="py-8 text-center text-sm text-destructive" role="alert">{error}</p> : rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="px-3 py-2 text-left">时间</th><th className="px-3 py-2 text-left">账户</th><th className="px-3 py-2 text-right">金额</th><th className="px-3 py-2 text-left">交易对方</th><th className="px-3 py-2 text-left">支付方式</th><th className="px-3 py-2 text-left">备注</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-border last:border-0"><td className="px-3 py-2 tabular-nums">{row.occurredAt}</td><td className="px-3 py-2">{row.accountName}</td><td className={cn("px-3 py-2 text-right font-medium tabular-nums", row.tradeType === "income" ? "text-emerald-600" : row.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{row.tradeType === "expense" ? "-" : "+"}{formatMoney(row.amountMinor)}</td><td className="max-w-44 truncate px-3 py-2" title={row.counterparty}>{row.counterparty || "-"}</td><td className="max-w-36 truncate px-3 py-2" title={row.paymentChannel}>{row.paymentChannel || "-"}</td><td className="max-w-60 truncate px-3 py-2" title={row.remark}>{row.remark || "-"}</td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">该月份暂无匹配项目</p>}
+    </CardContent>
+  </Card>;
 }
 
 function EmptyChart() {
