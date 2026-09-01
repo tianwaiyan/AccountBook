@@ -28,7 +28,7 @@ export function buildTransactionSql(query: TransactionQuery): TransactionSqlPart
         const termSql = terms.map((term) => {
           const like = `%${term}%`;
           params.push(like, like, like);
-          return "(t.remark LIKE ? OR COALESCE(c.name, t.source_category, '') LIKE ? OR t.counterparty LIKE ?)";
+          return "(t.remark LIKE ? OR t.counterparty LIKE ? OR t.payment_channel LIKE ?)";
         });
         return `(${termSql.join(" AND ")})`;
       });

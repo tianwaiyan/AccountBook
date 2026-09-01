@@ -117,7 +117,7 @@ export class DemoTransactionRepository implements TransactionRepository {
   async list(query: TransactionQuery): Promise<Transaction[]> {
     let result = transactions.filter((row) => row.bookId === query.bookId);
     const keyword = query.keyword?.trim() ?? "";
-    if (keyword) result = result.filter((row) => matchesKeyword([row.remark, row.categoryName, row.counterparty], keyword));
+    if (keyword) result = result.filter((row) => matchesKeyword([row.remark, row.counterparty, row.paymentChannel], keyword));
     else if (query.yearMonth) result = result.filter((row) => row.occurredAt.startsWith(query.yearMonth!));
     if (query.accountIds?.length) result = result.filter((row) => query.accountIds!.includes(row.accountId));
     if (query.tradeTypes?.length) result = result.filter((row) => query.tradeTypes!.includes(row.tradeType));

@@ -4,6 +4,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -136,7 +137,7 @@ export function QuickEntryDialog({
         <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="交易时间" error={form.formState.errors.occurredAt?.message}>
-              <Input {...form.register("occurredAt")} inputMode="numeric" />
+              <Controller name="occurredAt" control={form.control} render={({ field }) => <DateTimeInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} />} />
             </Field>
             <Field label="账户" error={form.formState.errors.accountId?.message}>
               <Controller name="accountId" control={form.control} render={({ field }) => (

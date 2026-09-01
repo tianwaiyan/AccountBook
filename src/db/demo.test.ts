@@ -60,4 +60,12 @@ describe("DemoTransactionRepository.commitImport", () => {
     expect(result).toEqual({ inserted: 1, skipped: 1 });
     expect(createdIds).toHaveLength(1);
   });
+
+  it("searches remarks, counterparties and payment channels only", async () => {
+    const repository = new DemoTransactionRepository();
+
+    expect(await repository.list({ bookId: defaultBookId, keyword: "伙食费用" })).toHaveLength(0);
+    expect((await repository.list({ bookId: defaultBookId, keyword: "微信" })).length).toBeGreaterThan(0);
+    expect((await repository.list({ bookId: defaultBookId, keyword: "社区早餐店" })).map((row) => row.id)).toEqual(["t01"]);
+  });
 });

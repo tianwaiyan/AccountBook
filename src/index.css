@@ -31,7 +31,5 @@
 
 @layer utilities {
   .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--input)) transparent; }
-  .trend-scrollbar-hidden { scrollbar-width: none; }
-  .trend-scrollbar-hidden::-webkit-scrollbar { display: none; }
 }
 

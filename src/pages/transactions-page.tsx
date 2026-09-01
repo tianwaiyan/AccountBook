@@ -27,6 +27,7 @@ import { BatchPresetDialog } from "@/features/monthly-presets/batch-preset-dialo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,8 @@ import { formatMoney, signedMinor } from "@/utils/money";
 const DEFAULT_COLUMN_ORDER = ["select", "occurredAt", "account", "tradeType", "amount", "category", "tag", "status", "counterparty", "remark", "paymentChannel"];
 const DESKTOP_TRANSACTION_ROW_HEIGHT = 36;
 type FilterField = "occurredAt" | "account" | "tradeType" | "amount" | "category" | "tag" | "status";
+type TransactionSort = { by: "occurredAt" | "amount" | null; direction: "asc" | "desc" };
+const DEFAULT_TRANSACTION_SORT: TransactionSort = { by: "occurredAt", direction: "asc" };
 
 const STATUS_BY_SYSTEM: Record<string, StatusCode[]> = {
   public_expense: ["pending_reimbursement", "settled"],
@@ -79,7 +82,8 @@ export function TransactionsPage({
   const [statuses, setStatuses] = useState<Array<StatusCode | "blank">>([]);
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
-  const [sort, setSort] = useState<{ by: "occurredAt" | "amount" | null; direction: "asc" | "desc" }>({ by: null, direction: "desc" });
+  const [sort, setSort] = useState<TransactionSort>(DEFAULT_TRANSACTION_SORT);
+  const [sortExplicit, setSortExplicit] = useState(false);
   const [openFilter, setOpenFilter] = useState<FilterField | null>(null);
   const requestIdRef = useRef(0);
   const [rows, setRows] = useState<Transaction[]>([]);
@@ -280,7 +284,7 @@ export function TransactionsPage({
 
   const columns = useMemo<ColumnDef<Transaction>[]>(() => [
     { id: "select", size: 44, header: ({ table }) => { const tableRows = table.getRowModel().rows; return <Checkbox checked={tableRows.length > 0 && selectedIds.size === tableRows.length} onCheckedChange={(checked) => setSelectedIds(checked ? new Set(tableRows.map((row) => row.original.id)) : new Set())} />; }, cell: ({ row }) => <Checkbox checked={selectedIds.has(row.original.id)} onCheckedChange={(checked) => setSelectedIds((current) => { const next = new Set(current); checked ? next.add(row.original.id) : next.delete(row.original.id); return next; })} /> },
-    { id: "occurredAt", accessorKey: "occurredAt", header: "时间", size: 168, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellInput className="rounded-md px-2 py-1" value={current.occurredAt} onChange={(value) => updateDraft(row.original.id, { occurredAt: value })} /> : <CellText value={formatTransactionDisplayDateTime(current.occurredAt, dateDisplay)} className="tabular-nums" />; } },
+     { id: "occurredAt", accessorKey: "occurredAt", header: "时间", size: 168, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <DateTimeInput compact value={current.occurredAt} onChange={(value) => updateDraft(row.original.id, { occurredAt: value })} /> : <CellText value={formatTransactionDisplayDateTime(current.occurredAt, dateDisplay)} className="tabular-nums" />; } },
     { id: "account", accessorKey: "accountName", header: "账户", size: 112, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellSelect value={current.accountId} options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { const account = referenceData.accounts.find((item) => item.id === value); updateDraft(row.original.id, { accountId: value, accountName: account?.name ?? "" }); }} /> : <CellText value={current.accountName} />; } },
     { id: "tradeType", accessorKey: "tradeType", header: "收支", size: 86, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellSelect value={current.tradeType} options={Object.entries(tradeTypeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => updateDraft(row.original.id, { tradeType: value as TradeType, categoryId: null, categoryName: null, categorySystemKey: null, tagId: null, tagName: null, statusCode: null })} /> : <Badge tone={current.tradeType === "income" ? "income" : current.tradeType === "expense" ? "expense" : "neutral"}>{tradeTypeLabels[current.tradeType]}</Badge>; } },
     { id: "amount", accessorKey: "amountMinor", header: "金额", size: 108, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellInput className="rounded-md px-2 py-1" type="text" inputMode="decimal" value={amountTextsRef.current.get(row.original.id) ?? formatDraftAmount(current.amountMinor)} onChange={(value) => setAmountTexts((currentTexts) => new Map(currentTexts).set(row.original.id, value))} /> : <span className={cn("font-medium tabular-nums", current.tradeType === "income" ? "text-emerald-600" : current.tradeType === "expense" ? "text-rose-600" : "text-blue-600")}>{current.tradeType === "expense" ? "-" : "+"}{formatMoney(current.amountMinor)}</span>; } },
@@ -292,11 +296,14 @@ export function TransactionsPage({
     { id: "paymentChannel", accessorKey: "paymentChannel", header: "支付方式", size: 130, cell: ({ row }) => { const current = editMode ? draftsRef.current.get(row.original.id) ?? row.original : row.original; return editMode ? <CellInput className="rounded-md px-2 py-1" value={current.paymentChannel} onChange={(value) => updateDraft(row.original.id, { paymentChannel: value })} /> : <CellText value={current.paymentChannel} />; } },
   ], [selectedIds, editMode, referenceData, dateDisplay]);
 
+  const setExplicitSort = (next: TransactionSort) => { setSort(next); setSortExplicit(true); };
+  const clearSort = () => { setSort(DEFAULT_TRANSACTION_SORT); setSortExplicit(false); };
+  const hasNonDefaultSort = sortExplicit;
   const tradeTypeOptions = (Object.entries(tradeTypeLabels) as Array<[TradeType, string]>).map(([value, label]) => ({ value, label }));
   const statusOptions = (Object.entries(statusLabels) as Array<[StatusCode, string]>).map(([value, label]) => ({ value, label }));
   const headerFilters: Record<string, React.ReactNode> = {
-    occurredAt: <TransactionFilterMenu field="occurredAt" label="时间" title="时间排序" active={sort.by === "occurredAt"} openFilter={openFilter} setOpenFilter={setOpenFilter}>
-      <SortFilterContent active={sort.by === "occurredAt"} direction={sort.direction} onSort={(direction) => setSort({ by: "occurredAt", direction })} onClearSort={() => setSort({ by: null, direction: "desc" })} />
+    occurredAt: <TransactionFilterMenu field="occurredAt" label="时间" title="时间排序" active={sort.by === "occurredAt" && hasNonDefaultSort} openFilter={openFilter} setOpenFilter={setOpenFilter}>
+      <SortFilterContent active={sort.by === "occurredAt" && hasNonDefaultSort} direction={sort.direction} onSort={(direction) => setExplicitSort({ by: "occurredAt", direction })} onClearSort={clearSort} />
     </TransactionFilterMenu>,
     account: <TransactionFilterMenu field="account" label="账户" title="筛选账户" active={accountIds.length > 0} selectedCount={accountIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
       <MultiFilterContent options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} values={accountIds} onToggle={(value, checked) => updateFilterSelection(setAccountIds, value, checked)} />
@@ -305,7 +312,7 @@ export function TransactionsPage({
       <MultiFilterContent options={tradeTypeOptions} values={tradeTypes} onToggle={(value, checked) => updateFilterSelection(setTradeTypes, value as TradeType, checked)} />
     </TransactionFilterMenu>,
     amount: <TransactionFilterMenu field="amount" label="金额" title="筛选或排序金额" active={Boolean(amountMin || amountMax) || sort.by === "amount"} openFilter={openFilter} setOpenFilter={setOpenFilter}>
-      <AmountFilterContent minimum={amountMin} maximum={amountMax} setMinimum={setAmountMin} setMaximum={setAmountMax} sort={sort} setSort={setSort} onClearSort={() => setSort({ by: null, direction: "desc" })} error={amountError} />
+      <AmountFilterContent minimum={amountMin} maximum={amountMax} setMinimum={setAmountMin} setMaximum={setAmountMax} sort={sort} setSort={setExplicitSort} onClearSort={clearSort} error={amountError} />
     </TransactionFilterMenu>,
     category: <TransactionFilterMenu field="category" label="分类" title="筛选分类" active={categoryIds.length > 0} selectedCount={categoryIds.length} openFilter={openFilter} setOpenFilter={setOpenFilter}>
       <MultiFilterContent options={referenceData.categories.map((item) => ({ value: item.id, label: item.name }))} values={categoryIds} onToggle={(value, checked) => updateFilterSelection(setCategoryIds, value, checked)} />
@@ -326,19 +333,19 @@ export function TransactionsPage({
     setStatuses([]);
     setAmountMin("");
     setAmountMax("");
-    setSort({ by: null, direction: "desc" });
+    clearSort();
     setOpenFilter(null);
   };
 
-  const hasActiveTableQuery = Boolean(accountIds.length || tradeTypes.length || categoryIds.length || tagIds.length || statuses.length || amountMin || amountMax || sort.by);
+  const hasActiveTableQuery = Boolean(accountIds.length || tradeTypes.length || categoryIds.length || tagIds.length || statuses.length || amountMin || amountMax || hasNonDefaultSort);
 
   const table = useReactTable({ data: visibleRows, columns, getRowId: (row) => row.id, state: { columnOrder, columnSizing }, onColumnOrderChange: (updater) => setColumnOrder((current) => { const next = typeof updater === "function" ? updater(current) : updater; void settingsRepository.set("transaction_column_order", next); return next; }), onColumnSizingChange: setColumnSizing, columnResizeMode: "onChange", getCoreRowModel: getCoreRowModel() });
   const getEditableRow = (row: Transaction) => editMode ? draftsRef.current.get(row.id) ?? row : row;
 
   if (error) return <ErrorState message={error} />;
   return <div className="space-y-4">
-    <TransactionToolbar selectedMonth={selectedMonth} onMonthChange={(month: string) => { setSelectedMonth(month); setKeyword(""); clearColumnFilters(); }} months={referenceData.months} keyword={keyword} onKeywordChange={setKeyword} />
-    <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} sort={sort} setSort={setSort} onClearSort={() => setSort({ by: null, direction: "desc" })} amountError={amountError} onClear={clearColumnFilters} />
+     <TransactionToolbar selectedMonth={selectedMonth} onMonthChange={(month: string) => { setSelectedMonth(month); setKeyword(""); clearColumnFilters(); }} months={referenceData.months} keyword={keyword} onKeywordChange={setKeyword} />
+     <MobileTransactionFilters referenceData={referenceData} filters={{ accountIds, tradeTypes, categoryIds, tagIds, statuses }} setters={{ setAccountIds, setTradeTypes, setCategoryIds, setTagIds, setStatuses }} amountMin={amountMin} amountMax={amountMax} setAmountMin={setAmountMin} setAmountMax={setAmountMax} sort={sort} setSort={setExplicitSort} onClearSort={clearSort} amountError={amountError} onClear={clearColumnFilters} />
     <div className="flex min-h-9 flex-wrap items-center gap-2">
       {!editMode ? <><Button variant="outline" onClick={beginEdit} disabled={!rows.length}><Edit3 className="size-4" />修改流水</Button><Button variant="outline" onClick={() => setPresetBatchOpen(true)}><SlidersHorizontal className="size-4" />批量记账</Button></> : <><Button onClick={saveEdit}><Save className="size-4" />保存修改</Button><Button variant="outline" onClick={cancelEdit}><X className="size-4" />取消</Button><Button variant="outline" onClick={() => setBatchOpen(true)} disabled={!selectedIds.size}><SlidersHorizontal className="size-4" />批量修改</Button></>}
       <Button variant="outline" onClick={clearColumnFilters} disabled={!hasActiveTableQuery}><RotateCcw className="size-4" />取消筛选</Button>
@@ -358,7 +365,7 @@ export function TransactionsPage({
 function TransactionToolbar({ selectedMonth, onMonthChange, months, keyword, onKeywordChange }: { selectedMonth: string; onMonthChange: (month: string) => void; months: string[]; keyword: string; onKeywordChange: (keyword: string) => void }) {
   const year = selectedMonth.slice(0, 4);
   const years = [...new Set(months.map((month) => month.slice(0, 4)))];
-  return <div className="space-y-2"><div className="flex gap-2 overflow-x-auto pb-1"><select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={year} onChange={(event) => { const latest = months.find((month) => month.startsWith(event.target.value)); if (latest) onMonthChange(latest); }}>{years.map((item) => <option key={item} value={item}>{item}年</option>)}</select>{Array.from({ length: 12 }, (_, index) => { const month = `${year}-${String(index + 1).padStart(2, "0")}`; return <Button key={month} size="sm" variant={selectedMonth === month ? "default" : "outline"} disabled={months.length > 0 && !months.includes(month)} onClick={() => onMonthChange(month)}>{index + 1}月</Button>; })}</div><div className="relative"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input className="pl-8" value={keyword} onChange={(event) => onKeywordChange(event.target.value)} placeholder="搜索备注、分类、对方；支持 AND / OR" /></div></div>;
+  return <div className="space-y-2"><div className="flex gap-2 overflow-x-auto pb-1"><select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={year} onChange={(event) => { const latest = months.find((month) => month.startsWith(event.target.value)); if (latest) onMonthChange(latest); }}>{years.map((item) => <option key={item} value={item}>{item}年</option>)}</select>{Array.from({ length: 12 }, (_, index) => { const month = `${year}-${String(index + 1).padStart(2, "0")}`; return <Button key={month} size="sm" variant={selectedMonth === month ? "default" : "outline"} disabled={months.length > 0 && !months.includes(month)} onClick={() => onMonthChange(month)}>{index + 1}月</Button>; })}</div><div className="relative"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input className="pl-8" value={keyword} onChange={(event) => onKeywordChange(event.target.value)} placeholder="搜索备注、交易对方、支付方式；支持 AND / OR" /></div></div>;
 }
 
 type FilterOption = { value: string; label: string };
@@ -686,7 +693,7 @@ function MobileTransactionCards({ rows, getEditableRow, selectedIds, setSelected
   return <div className={cn("space-y-2 md:hidden", editMode && "rounded-md bg-primary/[0.02] p-1")}>{rows.map((row) => {
     const current = getEditableRow(row);
     const mobileTitle = current.counterparty || current.remark || current.categoryName || "待分类";
-    return <article key={row.id} className={cn("rounded-lg border border-border bg-card p-3", current.statusCode?.startsWith("pending") && "border-rose-200 bg-rose-50/50", editMode && selectedIds.has(row.id) && !current.statusCode?.startsWith("pending") && "bg-primary/5 ring-1 ring-inset ring-primary/25")}><div className="flex items-start gap-3"><Checkbox checked={selectedIds.has(row.id)} onCheckedChange={(checked) => setSelectedIds((selected) => { const next = new Set(selected); checked ? next.add(row.id) : next.delete(row.id); return next; })} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="line-clamp-2 break-words text-sm font-medium" title={mobileTitle}>{mobileTitle}</p><p className="text-xs text-muted-foreground">{formatTransactionDisplayDateTime(current.occurredAt, dateDisplay)}</p></div><span className={cn("shrink-0 text-sm font-semibold", current.tradeType === "income" ? "text-emerald-600" : "text-rose-600")}>{current.tradeType === "expense" ? "-" : "+"}{formatMoney(current.amountMinor)}</span></div>{editMode ? <div className="mt-3 grid gap-2"><CellInput value={current.occurredAt} onChange={(value) => updateDraft(row.id, { occurredAt: value })} /><div className="grid grid-cols-2 gap-2"><CellSelect value={current.accountId} options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => updateDraft(row.id, { accountId: value, accountName: referenceData.accounts.find((item) => item.id === value)?.name ?? "" })} /><CellSelect allowBlank value={current.categoryId ?? ""} options={categoriesFor(current.tradeType, referenceData).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { const category = referenceData.categories.find((item) => item.id === value); updateDraft(row.id, { categoryId: value || null, categoryName: category?.name ?? null, categorySystemKey: category?.systemKey ?? null }); }} /></div><CellInput value={current.remark} onChange={(value) => updateDraft(row.id, { remark: value })} /></div> : <div className="mt-2 flex flex-wrap gap-1"><Badge>{tradeTypeLabels[current.tradeType]}</Badge>{current.categoryName && <Badge>{current.categoryName}</Badge>}{current.tagName && <Badge>{current.tagName}</Badge>}</div>}</div></div></article>;
+    return <article key={row.id} className={cn("rounded-lg border border-border bg-card p-3", current.statusCode?.startsWith("pending") && "border-rose-200 bg-rose-50/50", editMode && selectedIds.has(row.id) && !current.statusCode?.startsWith("pending") && "bg-primary/5 ring-1 ring-inset ring-primary/25")}><div className="flex items-start gap-3"><Checkbox checked={selectedIds.has(row.id)} onCheckedChange={(checked) => setSelectedIds((selected) => { const next = new Set(selected); checked ? next.add(row.id) : next.delete(row.id); return next; })} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="line-clamp-2 break-words text-sm font-medium" title={mobileTitle}>{mobileTitle}</p><p className="text-xs text-muted-foreground">{formatTransactionDisplayDateTime(current.occurredAt, dateDisplay)}</p></div><span className={cn("shrink-0 text-sm font-semibold", current.tradeType === "income" ? "text-emerald-600" : "text-rose-600")}>{current.tradeType === "expense" ? "-" : "+"}{formatMoney(current.amountMinor)}</span></div>{editMode ? <div className="mt-3 grid gap-2"><DateTimeInput value={current.occurredAt} onChange={(value) => updateDraft(row.id, { occurredAt: value })} /><div className="grid grid-cols-2 gap-2"><CellSelect value={current.accountId} options={referenceData.accounts.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => updateDraft(row.id, { accountId: value, accountName: referenceData.accounts.find((item) => item.id === value)?.name ?? "" })} /><CellSelect allowBlank value={current.categoryId ?? ""} options={categoriesFor(current.tradeType, referenceData).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { const category = referenceData.categories.find((item) => item.id === value); updateDraft(row.id, { categoryId: value || null, categoryName: category?.name ?? null, categorySystemKey: category?.systemKey ?? null }); }} /></div><CellInput value={current.remark} onChange={(value) => updateDraft(row.id, { remark: value })} /></div> : <div className="mt-2 flex flex-wrap gap-1"><Badge>{tradeTypeLabels[current.tradeType]}</Badge>{current.categoryName && <Badge>{current.categoryName}</Badge>}{current.tagName && <Badge>{current.tagName}</Badge>}</div>}</div></div></article>;
   })}</div>;
 }
 

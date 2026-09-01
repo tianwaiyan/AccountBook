@@ -55,6 +55,9 @@ describe("buildTransactionSql", () => {
 
     expect(result.conditions).not.toContain("substr(t.occurred_at, 1, 7) = ?");
     expect(result.conditions.some((condition) => condition.includes("t.counterparty LIKE ?"))).toBe(true);
+    expect(result.conditions.some((condition) => condition.includes("t.payment_channel LIKE ?"))).toBe(true);
+    expect(result.conditions.some((condition) => condition.includes("c.name"))).toBe(false);
+    expect(result.conditions.some((condition) => condition.includes("source_category"))).toBe(false);
     expect(result.params).toEqual([
       "book-default",
       "%水果%", "%水果%", "%水果%",

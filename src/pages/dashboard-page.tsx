@@ -153,9 +153,9 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
   const [scrollLeft, setScrollLeft] = useState(0);
   const anchorIndexRef = useRef<number | null>(null);
   const plotHeight = 264;
+  const axisHeight = 42;
   const contentWidth = Math.max(viewportWidth, viewportWidth > 0 ? viewportWidth * points.length / visibleMonths : points.length * 80);
   const range = getTrendVisibleRange(points.length, scrollLeft, viewportWidth || 1, contentWidth);
-  const visiblePoints = points.slice(range.startIndex, range.endIndex);
   const domainMaximum = getTrendDomainMaximum(points, range);
 
   useEffect(() => {
@@ -207,39 +207,41 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrendDatum[] }) {
     </div>
     <div className="min-w-0 overflow-hidden rounded-md border border-border bg-card">
       <div className="flex min-w-0">
-        <div className="w-[72px] shrink-0 border-r border-border bg-card" style={{ height: plotHeight }}>
-          <ResponsiveContainer width="100%" height={plotHeight}>
-            <LineChart data={points} margin={{ left: 0, right: 4, top: 8, bottom: 0 }}>
-              <YAxis domain={[0, domainMaximum]} ticks={getTrendAxisTicks(domainMaximum)} interval={0} tick={{ fontSize: 10 }} tickFormatter={formatTrendAxisValue} width={68} allowDataOverflow />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div ref={scrollRef} onScroll={handleScroll} className="trend-scrollbar-hidden min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-          <div style={{ width: `${Math.max(100, contentWidth)}px`, minWidth: "100%" }}>
+        <div className="w-[72px] shrink-0 border-r border-border bg-card" style={{ height: plotHeight + axisHeight }}>
+          <div style={{ height: plotHeight }}>
             <ResponsiveContainer width="100%" height={plotHeight}>
-              <LineChart data={points} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="month" hide />
-                <YAxis domain={[0, domainMaximum]} hide allowDataOverflow />
-                <Tooltip formatter={(value) => formatMoney(Number(value) * 100)} labelFormatter={(value) => `月份：${value}`} />
-                <Line type="linear" dataKey="income" name="收入" stroke="#059669" strokeWidth={2} dot={false} isAnimationActive={false} />
-                <Line type="linear" dataKey="expense" name="支出" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <LineChart data={points} margin={{ left: 0, right: 4, top: 8, bottom: 0 }}>
+                <YAxis domain={[0, domainMaximum]} ticks={getTrendAxisTicks(domainMaximum)} interval={0} tick={{ fontSize: 10 }} tickFormatter={formatTrendAxisValue} width={68} allowDataOverflow />
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <div className="border-t border-border bg-muted/30" style={{ height: axisHeight }} />
         </div>
-      </div>
-      <div className="flex border-t border-border bg-muted/30">
-        <div className="w-[72px] shrink-0 border-r border-border" style={{ height: 42 }} />
-        <div className="min-w-0 flex-1" style={{ height: 42 }}>
-          <ResponsiveContainer width="100%" height={42}>
-            <LineChart data={visiblePoints} margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
-              <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={formatTrendMonth} interval={0} padding={{ left: 12, right: 12 }} tickLine={false} axisLine={{ stroke: "#9ca3af" }} height={38} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div ref={scrollRef} onScroll={handleScroll} className="scrollbar-thin min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+          <div style={{ width: `${Math.max(100, contentWidth)}px`, minWidth: "100%" }}>
+            <div style={{ height: plotHeight }}>
+              <ResponsiveContainer width="100%" height={plotHeight}>
+                <LineChart data={points} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="month" hide />
+                  <YAxis domain={[0, domainMaximum]} hide allowDataOverflow />
+                  <Tooltip formatter={(value) => formatMoney(Number(value) * 100)} labelFormatter={(value) => `月份：${value}`} />
+                  <Line type="linear" dataKey="income" name="收入" stroke="#059669" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="linear" dataKey="expense" name="支出" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="border-t border-border bg-muted/30" style={{ height: axisHeight }}>
+              <ResponsiveContainer width="100%" height={axisHeight}>
+                <LineChart data={points} margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={formatTrendMonth} interval={0} tickLine={false} axisLine={{ stroke: "#9ca3af" }} height={38} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
         </div>
       </div>
     </div>
+  </div>
   </div>;
 }
 
@@ -284,7 +286,7 @@ function YearlyTable({ data, year }: { data: YearlyCategoryDatum[]; year: string
   }, [data]);
   const maximum = Math.max(1, ...rows.flatMap((row) => row.values));
   const totals = rows.reduce((result, row) => result.map((value, index) => value + row.values[index]), Array(12).fill(0));
-  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? <>{rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value ? `rgba(220, 38, 38, ${0.08 + (value / maximum) * 0.32})` : undefined }}>{value ? formatMoney(value) : "-"}</td>)}</tr>)}<tr className="border-t-2 border-border bg-muted/40 font-bold"><th className="sticky left-0 bg-muted/60 px-3 py-2 text-left font-bold">总计</th>{totals.map((value, index) => <td key={index} className="px-2 py-2 text-right font-bold tabular-nums">{value ? formatMoney(value) : "-"}</td>)}</tr></> : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
+  return <Card><CardHeader><CardTitle>{year} 年度分类支出</CardTitle></CardHeader><CardContent className="overflow-x-auto p-0 pt-4"><table className="w-full min-w-[860px] border-collapse text-xs"><thead><tr className="border-y border-border bg-muted/60"><th className="sticky left-0 bg-muted px-3 py-2 text-left">分类</th>{Array.from({ length: 12 }, (_, index) => <th key={index} className="px-2 py-2 text-right">{index + 1}月</th>)}</tr></thead><tbody>{rows.length ? <>{rows.map((row) => <tr key={row.name} className="border-b border-border"><th className="sticky left-0 bg-card px-3 py-2 text-left font-medium">{row.name}</th>{row.values.map((value, index) => <td key={index} className="px-2 py-2 text-right tabular-nums" style={{ backgroundColor: value ? `rgba(220, 38, 38, ${0.08 + (value / maximum) * 0.32})` : undefined }}>{value ? formatMoney(value) : "-"}</td>)}</tr>)}<tr className="border-t-2 border-border font-bold"><th className="sticky left-0 bg-card px-3 py-2 text-left font-bold">总计</th>{totals.map((value, index) => <td key={index} className="px-2 py-2 text-right font-bold tabular-nums">{value ? formatMoney(value) : "-"}</td>)}</tr></> : <tr><td colSpan={13} className="py-10 text-center text-muted-foreground">暂无年度支出</td></tr>}</tbody></table></CardContent></Card>;
 }
 
 function TrackingPanel({ title, rows, empty }: { title: string; rows: TrackingRecord[]; empty: string }) {
