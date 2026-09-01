@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReferenceData } from "@/hooks/use-reference-data";
 import type { ImportCandidate } from "@/types/domain";
 
 const { importService, backupService } = vi.hoisted(() => ({
@@ -20,13 +19,6 @@ const { importService, backupService } = vi.hoisted(() => ({
 vi.mock("@/services/import-registry", () => ({ importService, backupService }));
 
 import { ImportPage } from "@/pages/import-page";
-
-const referenceData: ReferenceData = {
-  accounts: [{ id: "account-alipay", bookId: "book-default", name: "支付宝", sortOrder: 0, isActive: true }],
-  categories: [{ id: "category-food", bookId: "book-default", kind: "expense", name: "伙食费用", systemKey: null, defaultTagId: null, sortOrder: 0, isActive: true }],
-  tags: [],
-  months: [],
-};
 
 const candidate: ImportCandidate = {
   rowId: "candidate-1",
@@ -72,13 +64,20 @@ describe("ImportPage filtering", () => {
   });
 
   async function openPreview() {
-    const view = render(<ImportPage referenceData={referenceData} onChanged={vi.fn()} />);
+    const view = render(<ImportPage onChanged={vi.fn()} />);
     const fileInput = view.container.querySelector('input[type="file"]');
     if (!fileInput) throw new Error("file input not found");
     fireEvent.change(fileInput, { target: { files: [new File(["csv"], "alipay.csv", { type: "text/csv" })] } });
     await screen.findByText("普通消费");
     return view;
   }
+
+  it("does not render category mapping controls in the import preview", async () => {
+    await openPreview();
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText("待分类")).not.toBeInTheDocument();
+  });
 
   it("shows all preview rows and moves manual filters into the shared filtered list", async () => {
     await openPreview();

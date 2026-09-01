@@ -34,7 +34,7 @@ export default function App() {
   else if (error) content = <ErrorState message={error} />;
   else if (page === "dashboard") content = <DashboardPage referenceData={data} refreshVersion={refreshVersion} />;
   else if (page === "transactions") content = <TransactionsPage referenceData={data} refreshVersion={refreshVersion} onChanged={changed} onDirtyChange={setTransactionsDirty} />;
-  else if (page === "import") content = <ImportPage referenceData={data} onChanged={changed} />;
+  else if (page === "import") content = <ImportPage onChanged={changed} />;
   else if (page === "options") content = <OptionsPage refreshVersion={refreshVersion} onChanged={changed} />;
   else content = <SettingsPage />;
 
