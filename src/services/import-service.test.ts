@@ -86,6 +86,26 @@ describe("ImportService", () => {
     expect(preview.excluded[0].excludedReason).toBe("转入零钱通");
   });
 
+  it("automatically filters zero-amount rows with an explanatory reason", async () => {
+    const csv = [
+      "交易时间,交易分类,交易对方,商品说明,收/支,金额,收/付款方式,交易状态",
+      "2026-08-08 08:00:00,余额调整,账户,零金额记录,不计收支,0.00,余额,交易成功",
+      "2026-08-08 09:00:00,消费,早餐店,早餐,支出,12.50,余额,交易成功",
+      "2026-08-08 10:00:00,余额调整,账户,空金额记录,不计收支,,余额,交易成功",
+    ].join("\n");
+
+    const preview = await service().preview(alipayFile(csv), "alipay", "book-default");
+
+    expect(preview.candidates).toHaveLength(1);
+    expect(preview.candidates[0].amountMinor).toBe(-1250);
+    expect(preview.excluded).toHaveLength(2);
+    expect(preview.excluded.map((row) => row.excludedReason)).toEqual([
+      "金额为 0，已自动过滤",
+      "金额为 0，已自动过滤",
+    ]);
+    expect(preview.excluded.every((row) => row.amountMinor === 0)).toBe(true);
+  });
+
   it("normalizes mixed line endings and distinguishes Alipay refunds from neutral rows", () => {
     expect(normalizeCsvLineEndings("说明\r\n表头\n正文\r尾部")).toBe("说明\n表头\n正文\n尾部");
     expect(inferPlatformTradeType("alipay", "不计收支", "退款", "退款-早餐", "退款成功"))

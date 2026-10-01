@@ -13,7 +13,7 @@ import type {
 } from "@/types/domain";
 import { createImportFingerprint, importBusinessKey } from "@/utils/fingerprint";
 import { normalizeDateTime, normalizeExcelDateTime } from "@/utils/date";
-import { signedMinor } from "@/utils/money";
+import { signedMinor, yuanToMinor } from "@/utils/money";
 
 type ExternalSource = "alipay" | "wechat" | "canonical_csv";
 type Matrix = unknown[][];
@@ -199,13 +199,18 @@ async function buildCandidate(
     : { tradeType: normalizeTradeType(input.tradeType), excludedNeutral: false };
   const tradeType = platformType.tradeType;
   if (!tradeType) throw new Error(`无法识别收支类型：${text(input.tradeType)}`);
+  const cleanedAmount = cleanAmount(input.amount);
+  const normalizedAmountMinor = yuanToMinor(cleanedAmount);
+  const isZeroAmount = Math.abs(normalizedAmountMinor) === 0;
   const candidateBase = {
     rowId: crypto.randomUUID(),
     source,
     occurredAt: input.isExcelDate ? normalizeExcelDateTime(input.occurredAt) : normalizeDateTime(input.occurredAt),
     accountName: text(input.accountName) || "未命名账户",
     tradeType,
-    amountMinor: signedMinor(cleanAmount(input.amount), tradeType),
+    // Keep zero-amount rows in the preview so they can be explained and
+    // restored, but never let them reach the import transaction.
+    amountMinor: isZeroAmount ? 0 : signedMinor(cleanedAmount, tradeType),
     sourceCategory: rawCategory,
     sourceTag: text(input.sourceTag),
     categoryId: null,
@@ -218,7 +223,8 @@ async function buildCandidate(
   return {
     ...candidateBase,
     fingerprint: await createImportFingerprint(candidateBase),
-    excludedReason: (source === "alipay" && sourceStatus.includes("交易关闭") ? `交易状态：${sourceStatus}` : null)
+    excludedReason: (isZeroAmount ? "金额为 0，已自动过滤" : null)
+      ?? (source === "alipay" && sourceStatus.includes("交易关闭") ? `交易状态：${sourceStatus}` : null)
       ?? exclusionReason(candidateBase)
       ?? (platformType.excludedNeutral ? `不计收支：${rawCategory || rawRemark || "未分类"}` : null),
   };
@@ -336,7 +342,7 @@ export class ImportService {
   }
 
   async commit(bookId: string, candidates: ImportCandidate[]): Promise<ImportCommitResult> {
-    return this.transactions.commitImport(bookId, candidates.filter((candidate) => !candidate.excludedReason));
+    return this.transactions.commitImport(bookId, candidates.filter((candidate) => !candidate.excludedReason && candidate.amountMinor !== 0));
   }
 
   async canonicalCsv(bookId: string): Promise<string> {

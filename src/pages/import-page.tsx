@@ -59,7 +59,9 @@ export function ImportPage({ onChanged, excludedHistory: controlledExcludedHisto
     }
 
     const excluded = preview.excluded.find((row) => row.rowId === rowId);
-    if (!excluded) return;
+    // Zero-amount rows are invalid transactions and must remain filtered even
+    // if the user clicks the restore checkbox in the filtered list.
+    if (!excluded || excluded.amountMinor === 0) return;
     const restored = { ...excluded, excludedReason: null };
     setPreview({
       ...preview,
